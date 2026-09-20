@@ -179,19 +179,6 @@ export default function Hero({ onOpenConsultation }) {
 
           </div>
 
-          {/* Floating Metric Badge 1 (Top Left) */}
-          <div className="hidden lg:flex items-center gap-3 p-3.5 rounded-2xl bg-[#0A1128]/95 backdrop-blur-xl border border-[#D4AF37]/40 shadow-2xl absolute -top-6 -left-10 animate-float">
-            <div className="w-10 h-10 rounded-xl bg-gold-gradient p-[1px]">
-              <div className="w-full h-full bg-[#060B18] rounded-[11px] flex items-center justify-center font-cinzel text-xs font-bold text-[#F3D079]">
-                20+
-              </div>
-            </div>
-            <div>
-              <span className="block text-xs font-bold text-slate-100">Years Experience</span>
-              <span className="block text-[10px] text-slate-400">Cross-Border Law</span>
-            </div>
-          </div>
-
           {/* Floating Metric Badge 2 (Bottom Right) */}
           <div className="hidden lg:flex items-center gap-3 p-3.5 rounded-2xl bg-[#0A1128]/95 backdrop-blur-xl border border-[#D4AF37]/40 shadow-2xl absolute -bottom-6 -right-10 animate-float" style={{ animationDelay: '2s' }}>
             <div className="w-10 h-10 rounded-xl bg-gold-gradient p-[1px]">
@@ -204,25 +191,7 @@ export default function Hero({ onOpenConsultation }) {
               <span className="block text-[10px] text-slate-400">NRI Title & Contracts</span>
             </div>
           </div>
-
         </div>
-
-        {/* 3. Bottom Key Metric Strip */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-5xl mx-auto pt-4">
-          {clientStats.map((stat, idx) => (
-            <div
-              key={idx}
-              className="bg-navy-card rounded-xl p-4 border border-slate-800/80 text-center hover:border-[#D4AF37]/40 transition-all"
-            >
-              <span className="font-cinzel text-2xl sm:text-3xl font-extrabold text-gold-gradient block">
-                {stat.value}
-              </span>
-              <span className="text-xs font-bold text-slate-200 block mt-0.5">{stat.label}</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">{stat.desc}</span>
-            </div>
-          ))}
-        </div>
-
       </div>
     </section>
   );

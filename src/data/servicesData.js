@@ -1,12 +1,29 @@
+export const PRICING_INFO = {
+  india: {
+    base: 499,
+    gst: "18%",
+    totalStr: "₹499 + 18% GST (Total ₹589)",
+    display: "₹499 + 18% GST"
+  },
+  international: {
+    amount: 5,
+    currency: "USD",
+    totalStr: "$5 USD",
+    display: "$5 USD"
+  }
+};
+
 export const servicesData = [
   {
     id: "international-law-business",
     title: "International Law & Global Business",
     subtitle: "Helping businesses understand the legal side of going global",
     tagline: "Cross-Border Legal Guidance • International Transactions • Dispute Awareness",
-    image: "/assets/expert-lawyer.jpg",
+    image: "/assets/service-global-trade.jpg",
     badge: "Global Markets",
     iconName: "Globe",
+    priceIndia: "₹499 + 18% GST",
+    priceInternational: "$5 USD",
     color: "from-blue-600 to-indigo-900",
     description: "Empowering businesses to navigate complex international legal frameworks with confidence. From import-export compliance to cross-border acquisitions and dispute prevention, Dr. Karanam Rajesh Kumar offers end-to-end counsel for global expansion.",
     features: [
@@ -34,9 +51,11 @@ export const servicesData = [
     title: "NRI Property Protection & Legal Solutions",
     subtitle: "Protecting Your International Investments, Today and Tomorrow",
     tagline: "Safe Investments • Secure Ownership • Global Support",
-    image: "/assets/nri-property-real.jpg",
+    image: "/assets/service-nri-property.jpg",
     badge: "NRI Priority",
     iconName: "ShieldCheck",
+    priceIndia: "₹499 + 18% GST",
+    priceInternational: "$5 USD",
     color: "from-amber-600 to-yellow-800",
     description: "Comprehensive legal safeguarding for Non-Resident Indians (NRIs) holding or acquiring real estate in India. Protect your land, commercial holdings, and ancestral properties from illegal encroachment, title defects, and fraudulent sales.",
     features: [
@@ -64,9 +83,11 @@ export const servicesData = [
     title: "International Contract Drafting & Frameworks",
     subtitle: "Legal Frameworks for a Global Tomorrow",
     tagline: "Plan • Draft • Negotiate • Protect • Succeed",
-    image: "/assets/contract-drafting-real.jpg",
+    image: "/assets/service-contract-drafting.jpg",
     badge: "High Precision",
     iconName: "FileText",
+    priceIndia: "₹499 + 18% GST",
+    priceInternational: "$5 USD",
     color: "from-cyan-600 to-blue-900",
     description: "Meticulously crafted international contracts designed to lower risk, eliminate ambiguities, and strengthen global partnerships. Ensuring your commercial interests remain bulletproof across foreign courts.",
     features: [
@@ -94,9 +115,11 @@ export const servicesData = [
     title: "International Investment & Wealth Protection",
     subtitle: "Legal & Strategic Perspective for Global Capital",
     tagline: "Global Investment • Legal Protection • Cross-Border Growth",
-    image: "/assets/investment-opps-real.jpg",
+    image: "/assets/service-global-investment.jpg",
     badge: "Wealth Safeguard",
     iconName: "TrendingUp",
+    priceIndia: "₹499 + 18% GST",
+    priceInternational: "$5 USD",
     color: "from-emerald-600 to-teal-900",
     description: "Navigating international investment laws, foreign capital repatriations, and tax treaty benefits. Protect your global investments with rigorous legal due diligence and strategic asset structuring.",
     features: [
@@ -120,13 +143,47 @@ export const servicesData = [
     ]
   },
   {
+    id: "immigration-roadmap",
+    title: "Immigration & Emigration Roadmap Advisory",
+    subtitle: "Build Your Immigration Roadmap — Plan Today. Progress Tomorrow.",
+    tagline: "Don't plan only for entry — plan for the full immigration journey.",
+    image: "/assets/service-immigration-mobility.jpg",
+    badge: "Global Mobility",
+    iconName: "Plane",
+    priceIndia: "₹499 + 18% GST",
+    priceInternational: "$5 USD",
+    color: "from-indigo-600 to-cyan-900",
+    description: "Comprehensive end-to-end immigration and emigration strategy for students, professionals, business owners, and families. Moving beyond basic visa entry to establish watertight legal status, long-term PR residency, and citizenship pathways worldwide.",
+    features: [
+      "9-Step Immigration Journey: Goal, Country, Category & Eligibility Mapping",
+      "Study, Work, Business, Family Reunion & Investor Visa Legal Advisory",
+      "Temporary Status, Visa Repudiation Defense & Compliance Filings",
+      "Long-Term Permanent Residency (PR) & Citizenship Execution",
+      "Dual-Jurisdiction Legal Alignment: India to USA, Canada, UK, UAE, EU & Australia"
+    ],
+    highlights: [
+      { title: "Study & Work", desc: "Education & Career Growth Pathways" },
+      { title: "Business & Investor", desc: "Commercial Expansion & Golden Visas" },
+      { title: "Family & Settlement", desc: "Reunion & Permanent Residency" },
+      { title: "Full Journey", desc: "Entry to Long-Term Citizenship" }
+    ],
+    deliverables: [
+      "Custom 9-Step Personalised Immigration Strategy Document",
+      "Document Due Diligence & Eligibility Audit",
+      "Visa Repudiation Legal Defense & Appeal Notice",
+      "Long-Term PR & Citizenship Legal Roadmap"
+    ]
+  },
+  {
     id: "life-after-divorce",
     title: "Family Law & Life After Divorce Advisory",
     subtitle: "A New Chapter. A Brighter You. Practical guidance, emotional support & legal clarity.",
     tagline: "Heal • Rebuild • Grow • Thrive",
-    image: "/assets/life-divorce-real.jpg",
+    image: "/assets/service-family-law.jpg",
     badge: "Compassionate Care",
     iconName: "HeartHandshake",
+    priceIndia: "₹499 + 18% GST",
+    priceInternational: "$5 USD",
     color: "from-purple-600 to-slate-900",
     description: "Empowering individuals undergoing matrimonial disputes or divorce with complete legal clarity, emotional fortitude, and practical life-planning solutions. Moving forward with strength and confidence.",
     features: [
@@ -159,6 +216,11 @@ export const clientStats = [
 ];
 
 export const FAQs = [
+  {
+    category: "Immigration",
+    question: "What is the 9-Step Immigration Roadmap and how does it differ from regular visa agents?",
+    answer: "Unlike basic visa consultancies that only focus on initial entry visas, Dr. Karanam Rajesh Kumar's 9-Step Roadmap covers the full legal arc: Goal Definition, Country Selection, Visa Category Fitting, Document Due Diligence, Compliance, Extensions, Long-Term Permanent Residency (PR), and Dual Citizenship legalities under international law."
+  },
   {
     category: "NRI Property",
     question: "Can an NRI buy or inherit property in India without visiting the country?",

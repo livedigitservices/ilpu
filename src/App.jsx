@@ -5,6 +5,7 @@ import Hero from './components/Hero';
 import AboutExpert from './components/AboutExpert';
 import ServicesShowcase from './components/ServicesShowcase';
 import NRISection from './components/NRISection';
+import ImmigrationSection from './components/ImmigrationSection';
 import GlobalNetwork from './components/GlobalNetwork';
 import InteractiveAssessment from './components/InteractiveAssessment';
 import Testimonials from './components/Testimonials';
@@ -15,7 +16,6 @@ import { Phone, MessageSquare } from 'lucide-react';
 
 export default function App() {
   const [consultationOpen, setConsultationOpen] = useState(false);
-  const [selectedService, setSelectedService] = useState(null);
 
   useEffect(() => {
     const lenis = initSmoothScroll();
@@ -34,21 +34,19 @@ export default function App() {
       <main>
         <Hero onOpenConsultation={() => setConsultationOpen(true)} />
         <AboutExpert />
-        <ServicesShowcase
-          onSelectService={(service) => setSelectedService(service)}
-          onOpenConsultation={() => setConsultationOpen(true)}
-        />
+        <ServicesShowcase onOpenConsultation={() => setConsultationOpen(true)} />
+        <ImmigrationSection onOpenConsultation={() => setConsultationOpen(true)} />
         <NRISection onOpenConsultation={() => setConsultationOpen(true)} />
         <GlobalNetwork onOpenConsultation={() => setConsultationOpen(true)} />
         <InteractiveAssessment onOpenConsultation={() => setConsultationOpen(true)} />
         <Testimonials />
-        <FAQSection />
+        <FAQSection onOpenConsultation={() => setConsultationOpen(true)} />
       </main>
 
       {/* Footer */}
       <Footer onOpenConsultation={() => setConsultationOpen(true)} />
 
-      {/* Modals */}
+      {/* Booking Strategy Modal (Powered by Web3Forms) */}
       <ConsultationModal
         isOpen={consultationOpen}
         onClose={() => setConsultationOpen(false)}
@@ -57,7 +55,7 @@ export default function App() {
       {/* Quick Action Floating Bar (Mobile & Desktop sticky bottom-right) */}
       <div className="fixed bottom-5 right-5 z-40 flex items-center gap-3">
         <a
-          href="https://wa.me/919573446403?text=Hello%20Dr.%20Karanam%20Rajesh%20Kumar,%20I%20would%20like%20to%20inquire%20about%20your%20International%20Legal%20Services."
+          href="https://wa.me/919573446403?text=Hello%20Dr.%20Karanam%20Rajesh%20Kumar,%20I%20would%20like%20to%20inquire%20about%20your%20International%20Legal%20&%20Immigration%20Consultation%20(₹499+GST%20/%20$5%20USD)."
           target="_blank"
           rel="noreferrer"
           className="p-3.5 rounded-full bg-emerald-600 text-white shadow-xl hover:scale-110 transition-transform duration-300 flex items-center justify-center group"
@@ -74,7 +72,7 @@ export default function App() {
           className="px-4 py-3 rounded-full bg-gold-gradient text-slate-950 font-bold text-xs shadow-xl shadow-[#D4AF37]/25 hover:scale-105 transition-transform flex items-center gap-2 border border-[#D4AF37]"
         >
           <Phone className="w-4 h-4" />
-          <span className="hidden sm:inline">Book Strategy Call</span>
+          <span className="hidden sm:inline">Book Strategy </span>
         </button>
       </div>
 

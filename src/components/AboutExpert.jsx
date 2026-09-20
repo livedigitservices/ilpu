@@ -38,7 +38,6 @@ export default function AboutExpert() {
                     <Sparkles className="w-3.5 h-3.5 text-[#F3D079]" />
                     <span>Dr. Karanam Rajesh Kumar</span>
                   </div>
-                  <span className="text-[10px] text-slate-300 font-mono">Supreme Court Advocate</span>
                 </div>
               </div>
 

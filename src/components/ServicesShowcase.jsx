@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { servicesData } from '../data/servicesData';
-import { Globe, ShieldCheck, FileText, TrendingUp, HeartHandshake, ArrowRight, CheckCircle, Sparkles, LayoutGrid, SlidersHorizontal, Eye } from 'lucide-react';
+import { Globe, ShieldCheck, FileText, TrendingUp, HeartHandshake, ArrowRight, CheckCircle, Sparkles, LayoutGrid, SlidersHorizontal, Eye, Plane, Tag, FileCheck } from 'lucide-react';
 
 const iconMap = {
   Globe: Globe,
   ShieldCheck: ShieldCheck,
   FileText: FileText,
   TrendingUp: TrendingUp,
+  Plane: Plane,
   HeartHandshake: HeartHandshake,
 };
 
@@ -15,10 +16,11 @@ const shortTitles = {
   "nri-property-protection": "02. NRI Property Protection",
   "contract-drafting": "03. Contract Drafting",
   "investment-opportunities": "04. Global Investments",
-  "life-after-divorce": "05. Family Law & Divorce"
+  "immigration-roadmap": "05. Immigration Roadmap",
+  "life-after-divorce": "06. Family Law & Divorce"
 };
 
-export default function ServicesShowcase({ onSelectService, onOpenConsultation }) {
+export default function ServicesShowcase({ onOpenConsultation }) {
   const [activeTab, setActiveTab] = useState(servicesData[0].id);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'spotlight'
 
@@ -39,14 +41,14 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
             <span>Core Practice Areas & Advisory</span>
           </div>
           <h2 className="font-cinzel text-3xl sm:text-5xl font-extrabold text-white">
-            World-Class Legal Solutions
+            World-Class Legal Practice Domains
           </h2>
           <p className="text-slate-300 text-base font-light">
-            Providing legal precision, cross-border protection, and strategic clarity across international trade, real estate, contracts, foreign investment, and family law.
+            Providing legal precision, cross-border protection, immigration roadmaps, and strategic clarity across international trade, real estate, contracts, foreign investment, and family law.
           </p>
 
           {/* View Mode Toggle Switch */}
-          <div className="pt-4 flex items-center justify-center gap-3">
+          <div className="pt-2 flex items-center justify-center gap-3">
             <div className="inline-flex p-1 rounded-xl bg-slate-900 border border-slate-800">
               <button
                 onClick={() => setViewMode('grid')}
@@ -57,7 +59,7 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>All Services Grid</span>
+                <span>All 6 Services Grid</span>
               </button>
 
               <button
@@ -75,7 +77,7 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
           </div>
         </div>
 
-        {/* 1. ALL SERVICES GRID VIEW (Default - 100% visible cards) */}
+        {/* 1. ALL SERVICES GRID SHOWCASE (Self-contained, expanded cards) */}
         {viewMode === 'grid' && (
           <div className="space-y-12 animate-fadeIn">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -87,7 +89,7 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                     className="bg-navy-card rounded-2xl border border-slate-800 hover:border-[#D4AF37]/50 transition-all duration-300 overflow-hidden flex flex-col justify-between group hover:-translate-y-1.5 shadow-xl hover:shadow-2xl hover:shadow-[#D4AF37]/10"
                   >
                     {/* Card Image Banner */}
-                    <div className="relative h-48 overflow-hidden">
+                    <div className="relative h-52 overflow-hidden">
                       <img
                         src={service.image}
                         alt={service.title}
@@ -97,6 +99,10 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                       
                       <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-[#060B18]/90 backdrop-blur-md border border-[#D4AF37]/40 text-[10px] font-bold text-[#F3D079] uppercase tracking-wider">
                         {service.badge}
+                      </div>
+
+                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-[#060B18]/90 backdrop-blur-md border border-emerald-500/40 text-[10px] font-bold text-emerald-400">
+                        {service.priceIndia} / {service.priceInternational}
                       </div>
 
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
@@ -109,8 +115,8 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                       </div>
                     </div>
 
-                    {/* Card Content */}
-                    <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                    {/* Card Content - Complete Self-Contained Scope */}
+                    <div className="p-6 space-y-5 flex-1 flex flex-col justify-between">
                       <div className="space-y-2">
                         <h3 className="font-cinzel text-xl font-bold text-white group-hover:text-[#F3D079] transition-colors">
                           {service.title}
@@ -118,34 +124,45 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                         <p className="font-playfair text-xs text-gold-gradient italic font-medium">
                           "{service.subtitle}"
                         </p>
-                        <p className="text-xs text-slate-300 font-light leading-relaxed line-clamp-3">
+                        <p className="text-xs text-slate-300 font-light leading-relaxed">
                           {service.description}
                         </p>
                       </div>
 
                       {/* Key Features Bullet List */}
                       <div className="space-y-2 pt-2 border-t border-slate-800/80">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          Key Practice Focus
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#F3D079] block">
+                          Core Practice Offerings
                         </span>
                         <div className="space-y-1.5">
-                          {service.features.slice(0, 3).map((feat, i) => (
+                          {service.features.map((feat, i) => (
                             <div key={i} className="flex items-start gap-2 text-[11px] text-slate-300">
                               <CheckCircle className="w-3.5 h-3.5 text-[#F3D079] shrink-0 mt-0.5" />
-                              <span className="line-clamp-1">{feat}</span>
+                              <span className="leading-tight">{feat}</span>
                             </div>
                           ))}
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="pt-4 flex items-center gap-2 border-t border-slate-800/80">
+                      {/* Deliverables Box */}
+                      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                          <FileCheck className="w-3 h-3 text-[#F3D079]" />
+                          <span>Key Deliverable</span>
+                        </span>
+                        <p className="text-[11px] text-slate-200 font-medium">
+                          {service.deliverables[0]}
+                        </p>
+                      </div>
+
+                      {/* Direct Booking Action Button (No Popup) */}
+                      <div className="pt-2 border-t border-slate-800/80">
                         <button
                           onClick={onOpenConsultation}
-                          className="py-2.5 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs font-semibold hover:border-[#D4AF37]/40 hover:text-[#F3D079] transition-all"
-                          title="Inquire For Service"
+                          className="w-full py-3 px-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-md border border-[#D4AF37]"
                         >
-                          Inquire
+                          <span>Book Strategy Consultation</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -156,12 +173,12 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
           </div>
         )}
 
-        {/* 2. INTERACTIVE SPOTLIGHT VIEW WITH 100% VISIBLE NON-OVERFLOWING TAB SELECTOR */}
+        {/* 2. INTERACTIVE SPOTLIGHT VIEW */}
         {viewMode === 'spotlight' && (
           <div className="space-y-8 animate-fadeIn">
             
-            {/* Fully Wrapped 5-Column Grid Selector (No Cut-off, No Horizontal Scroll) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {/* Fully Wrapped 6-Column Grid Selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {servicesData.map((service) => {
                 const Icon = iconMap[service.iconName] || Globe;
                 const isActive = activeTab === service.id;
@@ -169,15 +186,15 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                   <button
                     key={service.id}
                     onClick={() => setActiveTab(service.id)}
-                    className={`p-3.5 rounded-xl font-medium text-xs text-left transition-all duration-300 border flex items-center justify-between ${
+                    className={`p-3 rounded-xl font-medium text-xs text-left transition-all duration-300 border flex items-center justify-between ${
                       isActive
                         ? 'bg-gold-gradient text-slate-950 font-bold border-[#D4AF37] shadow-lg shadow-[#D4AF37]/20 scale-102'
                         : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 truncate">
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-slate-950' : 'text-[#F3D079]'}`} />
-                      <span className="truncate">{shortTitles[service.id]}</span>
+                    <div className="flex items-center gap-2 truncate">
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-slate-950' : 'text-[#F3D079]'}`} />
+                      <span className="truncate text-[11px]">{shortTitles[service.id]}</span>
                     </div>
                     {isActive && <Eye className="w-3.5 h-3.5 shrink-0 text-slate-950" />}
                   </button>
@@ -196,7 +213,9 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                     <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-900 text-[#F3D079] border border-[#D4AF37]/30">
                       {activeService.badge}
                     </span>
-                    <span className="text-xs text-slate-400 font-medium">ILPU Legal Practice Domain</span>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                      Strategy Fee: ₹499 + 18% GST / $5 USD
+                    </span>
                   </div>
 
                   <div>
@@ -214,7 +233,7 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
 
                   {/* Features */}
                   <div className="space-y-3 pt-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Core Legal Offerings</h4>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#F3D079]">Core Practice Offerings</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {activeService.features.map((feat, i) => (
                         <div key={i} className="flex items-start gap-2.5 bg-slate-900/60 p-3 rounded-lg border border-slate-800/60">
@@ -225,20 +244,14 @@ export default function ServicesShowcase({ onSelectService, onOpenConsultation }
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-wrap items-center gap-4 pt-4">
-                    <button
-                      onClick={() => onSelectService(activeService)}
-                      className="px-6 py-3.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs sm:text-sm tracking-wide shadow-lg hover:scale-105 transition-all flex items-center gap-2"
-                    >
-                      <span>Explore Full Scope & Process</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
+                  {/* Single Direct Booking Action Button */}
+                  <div className="pt-4">
                     <button
                       onClick={onOpenConsultation}
-                      className="px-6 py-3.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-semibold text-xs sm:text-sm hover:border-[#D4AF37]/40 hover:text-[#F3D079] transition-all"
+                      className="px-8 py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs sm:text-sm tracking-wide shadow-lg hover:scale-105 transition-all flex items-center gap-2 border border-[#D4AF37]"
                     >
-                      Inquire For This Service
+                      <span>Book Legal Strategy Consultation (₹499 + GST / $5 USD)</span>
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
 
