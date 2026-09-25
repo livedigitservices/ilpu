@@ -77,7 +77,7 @@ export default function Hero({ onOpenConsultation }) {
             </p>
 
             <p className="text-sm sm:text-lg text-slate-300 max-w-3xl mx-auto font-light leading-relaxed">
-              International Lawyer & Legal Expert • Supreme Court Bar • Empowering NRIs, global corporations, and investors with bulletproof legal protection across international jurisdictions.
+              International Lawyer & Legal Expert • Empowering NRIs, global corporations, and investors with bulletproof legal protection across international jurisdictions.
             </p>
           </div>
 
@@ -141,10 +141,6 @@ export default function Hero({ onOpenConsultation }) {
 
               {/* Core Credentials Badges */}
               <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-0.5">
-                  <span className="block text-xs font-bold text-slate-200">Supreme Court Bar</span>
-                  <span className="block text-[10px] text-slate-400">Delhi & High Courts</span>
-                </div>
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-0.5">
                   <span className="block text-xs font-bold text-slate-200">50+ Global Markets</span>
                   <span className="block text-[10px] text-slate-400">USA, UAE, UK, EU</span>

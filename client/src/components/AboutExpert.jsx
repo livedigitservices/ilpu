@@ -3,7 +3,6 @@ import { Scale, Globe, ShieldCheck, CheckCircle2, Award, Building2, FileCheck, C
 
 export default function AboutExpert() {
   const credentials = [
-    { title: 'Supreme Court & High Court Practice', desc: 'Representing clients across Indian judicial bodies and international arbitration hubs.' },
     { title: 'International Legal Processing Unit (ILPU)', desc: 'Director & Lead Strategist for cross-border documentation, compliance & governance.' },
     { title: 'NRI Property & Investment Defense', desc: 'Specialized in protecting non-resident assets, title verification & inheritance claims.' },
     { title: 'Cross-Border Commercial Trade Law', desc: 'Advising import-export enterprises, logistics, and foreign direct investments (FDI).' }

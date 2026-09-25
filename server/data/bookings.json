@@ -1,0 +1,83 @@
+[
+  {
+    "id": "ILPU-BKG-1790142888816",
+    "bookingId": "ILPU-BKG-1790142888816",
+    "paypalOrderId": "PAYPAL-ORD-1790142888795-5924",
+    "paypalCaptureId": "PAYPAL-ORD-1790142888795-5924",
+    "status": "PAID",
+    "serviceId": "nri-property-protection",
+    "serviceTitle": "NRI Property Protection & Legal Solutions",
+    "region": "india",
+    "pricingTier": "₹499 + 18% GST (Total ₹589 INR)",
+    "amount": 589,
+    "currency": "INR",
+    "amountPaid": "₹499 + 18% GST (Total ₹589 INR)",
+    "clientDetails": {
+      "name": "Vikramaditya Sharma",
+      "email": "vikram@example.com",
+      "phone": "+91 98765 43210",
+      "country": "India",
+      "notes": "Testing full order capture flow"
+    },
+    "name": "Vikramaditya Sharma",
+    "email": "vikram@example.com",
+    "phone": "+91 98765 43210",
+    "country": "India",
+    "details": "Testing full order capture flow",
+    "createdAt": "2026-09-23T05:54:48.816Z"
+  },
+  {
+    "id": "ILPU-BKG-1790329360156",
+    "bookingId": "ILPU-BKG-1790329360156",
+    "paypalOrderId": "PAYPAL-ORD-1790329360113-3526",
+    "paypalCaptureId": "PAYPAL-ORD-1790329360113-3526",
+    "status": "PAID",
+    "serviceId": "international-law-business",
+    "serviceTitle": "International Law & Global Business",
+    "region": "india",
+    "pricingTier": "₹499 + 18% GST (Total ₹589 INR)",
+    "amount": 589,
+    "currency": "INR",
+    "amountPaid": "₹499 + 18% GST (Total ₹589 INR)",
+    "clientDetails": {
+      "name": "Tharun",
+      "email": "mtharun342@gmail.com",
+      "phone": "9542404620",
+      "country": "India",
+      "notes": ""
+    },
+    "name": "Tharun",
+    "email": "mtharun342@gmail.com",
+    "phone": "9542404620",
+    "country": "India",
+    "details": "",
+    "createdAt": "2026-09-25T09:42:40.156Z"
+  },
+  {
+    "id": "ILPU-BKG-1790329603570",
+    "bookingId": "ILPU-BKG-1790329603570",
+    "paypalOrderId": "PAYPAL-ORD-1790329603545-9694",
+    "paypalCaptureId": "PAYPAL-ORD-1790329603545-9694",
+    "status": "PAID",
+    "serviceId": "immigration-roadmap",
+    "serviceTitle": "Immigration & Emigration Roadmap Advisory",
+    "region": "international",
+    "pricingTier": "$5.00 USD",
+    "amount": 5,
+    "currency": "USD",
+    "amountPaid": "$5.00 USD",
+    "clientDetails": {
+      "name": "Aditya Sharma",
+      "email": "aditya@example.com",
+      "phone": "+1 555 123 4567",
+      "country": "United States",
+      "notes": "Testing MongoDB integration flow"
+    },
+    "name": "Aditya Sharma",
+    "email": "aditya@example.com",
+    "phone": "+1 555 123 4567",
+    "country": "United States",
+    "details": "Testing MongoDB integration flow",
+    "createdAt": "2026-09-25T09:46:43.570Z"
+  }
+]

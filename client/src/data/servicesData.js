@@ -83,7 +83,7 @@ export const servicesData = [
     title: "International Contract Drafting & Frameworks",
     subtitle: "Legal Frameworks for a Global Tomorrow",
     tagline: "Plan • Draft • Negotiate • Protect • Succeed",
-    image: "/assets/service-contract-drafting.jpg",
+    image: "/assets/service-contract-drafting.png",
     badge: "High Precision",
     iconName: "FileText",
     priceIndia: "₹499 + 18% GST",
