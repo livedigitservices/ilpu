@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { getBookingByIdApi } from '../services/api';
 import {
   CheckCircle,
   Scale,
@@ -26,11 +27,8 @@ export default function BookingSuccessPage() {
 
     const fetchBooking = async () => {
       try {
-        const response = await fetch(`/api/bookings/${bookingId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setBooking(data);
-        }
+        const data = await getBookingByIdApi(bookingId);
+        setBooking(data);
       } catch (err) {
         console.error("Error fetching booking receipt:", err);
       } finally {

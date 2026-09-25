@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { servicesData, PRICING_INFO } from '../data/servicesData';
+import { createPayPalOrderApi, capturePayPalOrderApi } from '../services/api';
 import {
   Scale,
   ShieldCheck,
@@ -111,27 +112,16 @@ export default function ServiceBookingPage() {
     setProcessing(true);
 
     try {
-      const response = await fetch('/api/paypal/create-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          serviceId: service.id,
-          serviceTitle: service.title,
-          region,
-          amount: totalAmount,
-          currency: currencyCode,
-          clientDetails: formData
-        })
+      const orderID = await createPayPalOrderApi({
+        serviceId: service.id,
+        serviceTitle: service.title,
+        region,
+        amount: totalAmount,
+        currency: currencyCode,
+        clientDetails: formData,
       });
 
-      const data = await response.json();
-      if (!response.ok || !data.orderID) {
-        throw new Error(data.error || 'Failed to create PayPal order');
-      }
-
-      return data.orderID;
+      return orderID;
     } catch (err) {
       setProcessing(false);
       setPaymentError(err.message || 'Error creating payment order');
@@ -145,26 +135,15 @@ export default function ServiceBookingPage() {
     setPaymentError(null);
 
     try {
-      const response = await fetch('/api/paypal/capture-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          orderID: data.orderID,
-          serviceId: service.id,
-          serviceTitle: service.title,
-          region,
-          amount: totalAmount,
-          currency: currencyCode,
-          clientDetails: formData
-        })
+      const captureData = await capturePayPalOrderApi({
+        orderID: data.orderID,
+        serviceId: service.id,
+        serviceTitle: service.title,
+        region,
+        amount: totalAmount,
+        currency: currencyCode,
+        clientDetails: formData,
       });
-
-      const captureData = await response.json();
-      if (!response.ok || !captureData.success) {
-        throw new Error(captureData.error || 'Payment capture failed');
-      }
 
       // Navigate to booking success receipt page
       navigate(`/booking-success/${captureData.bookingId}`);
@@ -185,37 +164,25 @@ export default function ServiceBookingPage() {
     setPaymentError(null);
 
     try {
-      // 1. Create order
-      const createRes = await fetch('/api/paypal/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          serviceId: service.id,
-          serviceTitle: service.title,
-          region,
-          amount: totalAmount,
-          currency: currencyCode,
-          clientDetails: formData
-        })
-      });
-      const orderData = await createRes.json();
-
-      // 2. Capture order
-      const captureRes = await fetch('/api/paypal/capture-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderID: orderData.orderID,
-          serviceId: service.id,
-          serviceTitle: service.title,
-          region,
-          amount: totalAmount,
-          currency: currencyCode,
-          clientDetails: formData
-        })
+      const orderID = await createPayPalOrderApi({
+        serviceId: service.id,
+        serviceTitle: service.title,
+        region,
+        amount: totalAmount,
+        currency: currencyCode,
+        clientDetails: formData,
       });
 
-      const captureData = await captureRes.json();
+      const captureData = await capturePayPalOrderApi({
+        orderID,
+        serviceId: service.id,
+        serviceTitle: service.title,
+        region,
+        amount: totalAmount,
+        currency: currencyCode,
+        clientDetails: formData,
+      });
+
       if (captureData.success) {
         navigate(`/booking-success/${captureData.bookingId}`);
       } else {
