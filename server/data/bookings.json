@@ -79,5 +79,32 @@
     "country": "United States",
     "details": "Testing MongoDB integration flow",
     "createdAt": "2026-09-25T09:46:43.570Z"
+  },
+  {
+    "id": "ILPU-BKG-1790401387894",
+    "bookingId": "ILPU-BKG-1790401387894",
+    "paypalOrderId": "PAYPAL-ORD-1790401387861-2923",
+    "paypalCaptureId": "PAYPAL-ORD-1790401387861-2923",
+    "status": "PAID",
+    "serviceId": "international-law-business",
+    "serviceTitle": "International Law & Global Business",
+    "region": "india",
+    "pricingTier": "₹499 + 18% GST (Total ₹589 INR)",
+    "amount": 589,
+    "currency": "INR",
+    "amountPaid": "₹499 + 18% GST (Total ₹589 INR)",
+    "clientDetails": {
+      "name": "Tharun",
+      "email": "mtharun342@gmail.com",
+      "phone": "9542404620",
+      "country": "India",
+      "notes": ""
+    },
+    "name": "Tharun",
+    "email": "mtharun342@gmail.com",
+    "phone": "9542404620",
+    "country": "India",
+    "details": "",
+    "createdAt": "2026-09-26T05:43:07.894Z"
   }
 ]
