@@ -36,6 +36,15 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'ILPU Legal Express API is running',
+    health: '/health',
+    api: '/api'
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`=================================================`);
   console.log(`⚡ ILPU Legal Express Server running on port ${PORT}`);
