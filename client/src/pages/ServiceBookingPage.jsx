@@ -98,10 +98,10 @@ export default function ServiceBookingPage() {
   const isFormFilled = formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.country.trim();
 
   const currentPricing = region === 'india' ? PRICING_INFO.india : PRICING_INFO.international;
-  const totalAmount = region === 'india' ? 589 : 5;
-  const currencyCode = region === 'india' ? 'INR' : 'USD';
+  const totalAmount = region === 'india' ? 7 : 5;
+  const currencyCode = 'USD';
 
-  // Create PayPal Order API call
+  // Create PayPal Order API call (Keep buttons mounted!)
   const createPayPalOrder = async () => {
     if (!validateForm()) {
       setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.');
@@ -109,7 +109,6 @@ export default function ServiceBookingPage() {
     }
 
     setPaymentError(null);
-    setProcessing(true);
 
     try {
       const orderID = await createPayPalOrderApi({
@@ -117,19 +116,18 @@ export default function ServiceBookingPage() {
         serviceTitle: service.title,
         region,
         amount: totalAmount,
-        currency: currencyCode,
+        currency: 'USD',
         clientDetails: formData,
       });
 
       return orderID;
     } catch (err) {
-      setProcessing(false);
       setPaymentError(err.message || 'Error creating payment order');
       throw err;
     }
   };
 
-  // Capture PayPal Order API call
+  // Capture PayPal Order API call (Triggers when user completes payment in PayPal modal)
   const onPayPalApprove = async (data) => {
     setProcessing(true);
     setPaymentError(null);
@@ -153,7 +151,7 @@ export default function ServiceBookingPage() {
     }
   };
 
-  // Direct Confirmation Handler
+  // Direct Confirmation Handler (Instant Backup Payment)
   const handleSimulatePayment = async () => {
     if (!validateForm()) {
       setPaymentError('Please fill in all required client details in Step 2 before proceeding.');
@@ -579,7 +577,7 @@ export default function ServiceBookingPage() {
                   <div className="py-8 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-3">
                     <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
                     <p className="text-xs text-slate-300 font-semibold">
-                      Processing PayPal Transaction & Dispatching Admin Notification...
+                      Processing Payment Capture & Dispatching Admin Notification...
                     </p>
                   </div>
                 ) : (
@@ -600,12 +598,16 @@ export default function ServiceBookingPage() {
                         }}
                         createOrder={createPayPalOrder}
                         onApprove={onPayPalApprove}
+                        onCancel={() => {
+                          setProcessing(false);
+                        }}
                         onError={(err) => {
+                          setProcessing(false);
                           console.log("PayPal SDK Error:", err);
                           if (err && err.message && err.message.includes("Form validation failed")) {
                             setPaymentError("Please fill in all required client details (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.");
                           } else {
-                            setPaymentError("PayPal checkout notice: Ensure client details in Step 2 are completed. You can also use direct confirmation below.");
+                            setPaymentError("PayPal checkout notice: Please verify your credentials or click Direct Confirmation below.");
                           }
                         }}
                       />

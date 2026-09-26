@@ -19,7 +19,7 @@ async function getPayPalAccessToken() {
   }
 
   try {
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const auth = Buffer.from(`${clientId.trim()}:${clientSecret.trim()}`).toString('base64');
     const response = await fetch(`${PAYPAL_BASE_URL}/v1/oauth2/token`, {
       method: 'POST',
       body: 'grant_type=client_credentials',
@@ -30,9 +30,14 @@ async function getPayPalAccessToken() {
     });
 
     const data = await response.json();
-    return data.access_token;
+    if (data.access_token) {
+      return data.access_token;
+    } else {
+      console.error(`⚠️ [PayPal Auth Failed (${PAYPAL_MODE})]:`, data.error_description || data.error || 'Authentication failed');
+      return null;
+    }
   } catch (err) {
-    console.error('[PayPal Token Error]:', err.message);
+    console.error('[PayPal Token Network Error]:', err.message);
     return null;
   }
 }
@@ -42,50 +47,52 @@ export const createPayPalOrder = async (req, res) => {
     const { serviceId, serviceTitle, region, amount, currency } = req.body;
 
     const token = await getPayPalAccessToken();
-    const orderValue = amount ? String(amount) : (region === 'india' ? '589' : '5');
-    const orderCurrency = currency || (region === 'india' ? 'INR' : 'USD');
+    const orderValue = amount ? String(amount) : (region === 'india' ? '7' : '5');
+    const orderCurrency = 'USD';
 
-    if (token) {
-      // Execute live/sandbox REST API call to PayPal
-      const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          intent: 'CAPTURE',
-          purchase_units: [
-            {
-              amount: {
-                currency_code: orderCurrency,
-                value: orderValue,
-              },
-              description: `ILPU Legal Strategy Consultation - ${serviceTitle || 'Legal Service'}`,
-            },
-          ],
-        }),
+    if (!token) {
+      console.error('⚠️ [PayPal Order Failure]: Invalid PayPal Client ID / Secret credentials in server/.env');
+      return res.status(400).json({
+        error: 'PayPal authentication failed. Please verify your PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in server/.env, or use the "Confirm Booking" button below.'
       });
-
-      const orderData = await response.json();
-      return res.status(200).json(orderData);
     }
 
-    // Development/Fallback Order Creation
-    const mockOrderId = `PAYPAL-ORD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    return res.status(200).json({
-      orderID: mockOrderId,
-      id: mockOrderId,
-      status: 'CREATED',
-      purchase_units: [
-        {
-          amount: {
-            currency_code: orderCurrency,
-            value: orderValue,
+    // Execute live/sandbox REST API call to PayPal
+    const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        intent: 'CAPTURE',
+        purchase_units: [
+          {
+            amount: {
+              currency_code: orderCurrency,
+              value: orderValue,
+            },
+            description: `ILPU Legal Strategy Consultation - ${serviceTitle || 'Legal Service'}`,
           },
-        },
-      ],
+        ],
+      }),
     });
+
+    const orderData = await response.json();
+    if (!response.ok || !orderData.id) {
+      console.error('⚠️ [PayPal Order Creation Error]:', orderData);
+      return res.status(response.status || 400).json({
+        error: orderData.message || 'PayPal API failed to create order',
+        details: orderData
+      });
+    }
+
+    return res.status(200).json({
+      orderID: orderData.id,
+      id: orderData.id,
+      ...orderData
+    });
+
   } catch (err) {
     console.error('[Create PayPal Order Error]:', err);
     return res.status(500).json({ error: 'Failed to create PayPal order' });
@@ -108,7 +115,7 @@ export const capturePayPalOrder = async (req, res) => {
     const token = await getPayPalAccessToken();
     let captureResult = { status: 'COMPLETED', id: orderID };
 
-    if (token && orderID && !orderID.startsWith('PAYPAL-ORD-')) {
+    if (token && orderID && !orderID.startsWith('MOCK-ORD-')) {
       const response = await fetch(`${PAYPAL_BASE_URL}/v2/checkout/orders/${orderID}/capture`, {
         method: 'POST',
         headers: {

@@ -1,3 +1,4 @@
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -36,14 +37,27 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Serve built static frontend files if available (Production deployment)
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  console.log(`⚡ Serving static frontend from: ${clientDistPath}`);
+  app.use(express.static(clientDistPath));
 
-app.get('/', (req, res) => {
-  res.status(200).json({
-    message: 'ILPU Legal Express API is running',
-    health: '/health',
-    api: '/api'
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
   });
-});
+} else {
+  app.get('/', (req, res) => {
+    res.status(200).json({
+      message: 'ILPU Legal Express API is running',
+      health: '/health',
+      api: '/api'
+    });
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`=================================================`);

@@ -106,5 +106,32 @@
     "country": "India",
     "details": "",
     "createdAt": "2026-09-26T05:43:07.894Z"
+  },
+  {
+    "id": "ILPU-BKG-1790419692891",
+    "bookingId": "ILPU-BKG-1790419692891",
+    "paypalOrderId": "8PS00475UF0904812",
+    "paypalCaptureId": "8PS00475UF0904812",
+    "status": "PAID",
+    "serviceId": "international-law-business",
+    "serviceTitle": "International Law & Cross-Border Business Strategy",
+    "region": "india",
+    "pricingTier": "₹499 + 18% GST (Total ₹589 INR)",
+    "amount": 7,
+    "currency": "USD",
+    "amountPaid": "₹499 + 18% GST (Total ₹589 INR)",
+    "clientDetails": {
+      "name": "Test Client",
+      "email": "mtharun342@gmail.com",
+      "phone": "+91 98765 43210",
+      "country": "India",
+      "notes": "Testing end to end flow"
+    },
+    "name": "Test Client",
+    "email": "mtharun342@gmail.com",
+    "phone": "+91 98765 43210",
+    "country": "India",
+    "details": "Testing end to end flow",
+    "createdAt": "2026-09-26T10:48:12.891Z"
   }
 ]
