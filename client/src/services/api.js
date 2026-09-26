@@ -1,5 +1,5 @@
 // Centralized API Service for Frontend-to-Backend Communication
-const API_BASE_URL = '/api';
+const API_BASE_URL = 'https://ilpu.onrender.com/api';
 
 /**
  * Creates a new PayPal order on the backend
