@@ -95,3 +95,30 @@ export const findBookingById = async (id) => {
   const bookings = await getBookings();
   return bookings.find((b) => b.id === id || b.bookingId === id || b.paypalOrderId === id);
 };
+
+// Remove single booking by ID from MongoDB and local JSON file
+export const removeBookingFromStore = async (id) => {
+  let deletedFromMongo = false;
+  if (isMongoDBConnected()) {
+    try {
+      const res = await Booking.deleteOne({
+        $or: [{ bookingId: id }, { id: id }]
+      });
+      deletedFromMongo = res.deletedCount > 0;
+    } catch (err) {
+      console.error('[MongoDB removeBooking Error]:', err.message);
+    }
+  }
+
+  ensureFileExists();
+  try {
+    const raw = fs.readFileSync(dataFilePath, 'utf8');
+    const bookings = JSON.parse(raw);
+    const filtered = bookings.filter((b) => b.bookingId !== id && b.id !== id);
+    fs.writeFileSync(dataFilePath, JSON.stringify(filtered, null, 2));
+    return true;
+  } catch (err) {
+    console.error('[File Delete Backup Error]:', err.message);
+    return deletedFromMongo;
+  }
+};

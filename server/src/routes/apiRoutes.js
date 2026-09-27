@@ -2,7 +2,7 @@ import express from 'express';
 import { createPayPalOrder, capturePayPalOrder } from '../controllers/paypalController.js';
 import { createRazorpayOrder, verifyRazorpayPayment, handleRazorpayWebhook } from '../controllers/razorpayController.js';
 import { verifyDirectUpiPayment } from '../controllers/upiController.js';
-import { getBooking, listBookings } from '../controllers/bookingController.js';
+import { getBooking, listBookings, deleteBooking, createManualBooking } from '../controllers/bookingController.js';
 
 const router = express.Router();
 
@@ -18,8 +18,10 @@ router.post('/razorpay/webhook', handleRazorpayWebhook);
 // 3. Direct UPI Intent & QR Routes (GPay / PhonePe / Paytm / BHIM)
 router.post('/upi/verify-payment', verifyDirectUpiPayment);
 
-// 4. Booking Data & Receipt Routes
+// 4. Booking Data CRUD & Receipt Routes
 router.get('/bookings/:bookingId', getBooking);
 router.get('/bookings', listBookings);
+router.delete('/bookings/:bookingId', deleteBooking);
+router.post('/bookings/manual', createManualBooking);
 
 export default router;

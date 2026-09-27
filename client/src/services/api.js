@@ -175,3 +175,60 @@ export const getBookingByIdApi = async (bookingId) => {
 
   return data.booking || data;
 };
+
+/**
+ * 7. Fetches list of all bookings for Admin Dashboard
+ */
+export const listBookingsApi = async () => {
+  const response = await fetch(`${API_BASE_URL}/bookings`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to fetch bookings list');
+  }
+
+  return data.bookings || [];
+};
+
+/**
+ * 8. Deletes a booking record by ID
+ */
+export const deleteBookingApi = async (bookingId) => {
+  const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}`, {
+    method: 'DELETE',
+  });
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Failed to delete booking');
+  }
+
+  return data;
+};
+
+/**
+ * 9. Creates a manual booking record directly from Admin Dashboard
+ */
+export const createManualBookingApi = async ({ serviceId, serviceTitle, region, amount, currency, clientDetails }) => {
+  const response = await fetch(`${API_BASE_URL}/bookings/manual`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      serviceId,
+      serviceTitle,
+      region,
+      amount,
+      currency,
+      clientDetails,
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Failed to create manual booking');
+  }
+
+  return data;
+};
