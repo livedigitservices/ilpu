@@ -2,7 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { servicesData, PRICING_INFO } from '../data/servicesData';
-import { createPayPalOrderApi, capturePayPalOrderApi } from '../services/api';
+import {
+  createPayPalOrderApi,
+  capturePayPalOrderApi,
+  createRazorpayOrderApi,
+  verifyRazorpayPaymentApi,
+  verifyDirectUpiPaymentApi
+} from '../services/api';
 import {
   Scale,
   ShieldCheck,
@@ -20,7 +26,12 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  QrCode,
+  Smartphone,
+  ExternalLink,
+  ShieldAlert,
+  Zap
 } from 'lucide-react';
 
 const defaultService = {
@@ -44,6 +55,21 @@ const defaultService = {
   ]
 };
 
+// Dynamically load Razorpay SDK script
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 export default function ServiceBookingPage() {
   const { serviceId } = useParams();
   const navigate = useNavigate();
@@ -59,6 +85,11 @@ export default function ServiceBookingPage() {
     country: 'India',
     notes: ''
   });
+
+  // India Payment Method selection: 'UPI_APPS' | 'RAZORPAY' | 'UPI_QR'
+  const [indiaPaymentTab, setIndiaPaymentTab] = useState('UPI_APPS');
+  const [selectedUpiApp, setSelectedUpiApp] = useState('Google Pay');
+  const [upiUtr, setUpiUtr] = useState('');
 
   const [formErrors, setFormErrors] = useState({});
   const [processing, setProcessing] = useState(false);
@@ -98,10 +129,133 @@ export default function ServiceBookingPage() {
   const isFormFilled = formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.country.trim();
 
   const currentPricing = region === 'india' ? PRICING_INFO.india : PRICING_INFO.international;
-  const totalAmount = region === 'india' ? 7 : 5;
-  const currencyCode = 'USD';
+  const totalAmount = region === 'india' ? 589 : 5;
+  const currencyCode = region === 'india' ? 'INR' : 'USD';
 
-  // Create PayPal Order API call (Keep buttons mounted!)
+  // UPI Deep Link String for Google Pay, PhonePe, Paytm, BHIM
+  const upiId = 'mtharun342@okicici';
+  const upiPayeeName = 'Dr Karanam Rajesh Kumar';
+  const upiNote = `ILPU Legal Strategy - ${service.title}`;
+  const upiDeepLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiPayeeName)}&am=589&cu=INR&tn=${encodeURIComponent(upiNote)}`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiDeepLink)}&color=060B18&bgcolor=FFFFFF`;
+
+  // 1. Razorpay Payment Handler (India UPI, Cards, Netbanking)
+  const handleRazorpayPayment = async () => {
+    if (!validateForm()) {
+      setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.');
+      return;
+    }
+
+    setProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
+      }
+
+      const orderData = await createRazorpayOrderApi({
+        serviceId: service.id,
+        serviceTitle: service.title,
+        region,
+        amount: 589,
+        currency: 'INR',
+        clientDetails: formData,
+      });
+
+      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || orderData.keyId || 'rzp_test_ILPULegal2026';
+
+      const options = {
+        key: razorpayKey,
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: 'ILPU Legal Expert',
+        description: `Strategy Session - ${service.title}`,
+        order_id: orderData.orderId,
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.phone,
+        },
+        theme: {
+          color: '#D4AF37',
+        },
+        handler: async function (response) {
+          try {
+            const verification = await verifyRazorpayPaymentApi({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              paymentMethod: 'RAZORPAY_UPI',
+              serviceId: service.id,
+              serviceTitle: service.title,
+              region,
+              amount: 589,
+              currency: 'INR',
+              clientDetails: formData,
+            });
+
+            if (verification.success) {
+              navigate(`/booking-success/${verification.bookingId}`);
+            } else {
+              throw new Error(verification.error || 'Razorpay payment verification failed');
+            }
+          } catch (err) {
+            setProcessing(false);
+            setPaymentError(err.message || 'Error verifying Razorpay payment');
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setProcessing(false);
+          },
+        },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+
+    } catch (err) {
+      setProcessing(false);
+      setPaymentError(err.message || 'Error initiating Razorpay checkout.');
+    }
+  };
+
+  // 2. Direct UPI Payment Handler (Google Pay / PhonePe / Paytm / BHIM)
+  const handleDirectUpiPayment = async () => {
+    if (!validateForm()) {
+      setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding.');
+      return;
+    }
+
+    setProcessing(true);
+    setPaymentError(null);
+
+    try {
+      const data = await verifyDirectUpiPaymentApi({
+        utr: upiUtr.trim() || `UPI-REF-${Date.now()}`,
+        upiApp: selectedUpiApp,
+        serviceId: service.id,
+        serviceTitle: service.title,
+        region,
+        amount: 589,
+        currency: 'INR',
+        clientDetails: formData,
+      });
+
+      if (data.success) {
+        navigate(`/booking-success/${data.bookingId}`);
+      } else {
+        throw new Error(data.error || 'UPI Payment processing failed');
+      }
+    } catch (err) {
+      setProcessing(false);
+      setPaymentError(err.message || 'Error completing UPI booking payment.');
+    }
+  };
+
+  // 3. International PayPal Payment Handlers
   const createPayPalOrder = async () => {
     if (!validateForm()) {
       setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.');
@@ -115,19 +269,18 @@ export default function ServiceBookingPage() {
         serviceId: service.id,
         serviceTitle: service.title,
         region,
-        amount: totalAmount,
+        amount: 5,
         currency: 'USD',
         clientDetails: formData,
       });
 
       return orderID;
     } catch (err) {
-      setPaymentError(err.message || 'Error creating payment order');
+      setPaymentError(err.message || 'Error creating PayPal payment order');
       throw err;
     }
   };
 
-  // Capture PayPal Order API call (Triggers when user completes payment in PayPal modal)
   const onPayPalApprove = async (data) => {
     setProcessing(true);
     setPaymentError(null);
@@ -138,57 +291,15 @@ export default function ServiceBookingPage() {
         serviceId: service.id,
         serviceTitle: service.title,
         region,
-        amount: totalAmount,
-        currency: currencyCode,
+        amount: 5,
+        currency: 'USD',
         clientDetails: formData,
       });
 
-      // Navigate to booking success receipt page
       navigate(`/booking-success/${captureData.bookingId}`);
     } catch (err) {
       setProcessing(false);
-      setPaymentError(err.message || 'Error capturing payment order');
-    }
-  };
-
-  // Direct Confirmation Handler (Instant Backup Payment)
-  const handleSimulatePayment = async () => {
-    if (!validateForm()) {
-      setPaymentError('Please fill in all required client details in Step 2 before proceeding.');
-      return;
-    }
-
-    setProcessing(true);
-    setPaymentError(null);
-
-    try {
-      const orderID = await createPayPalOrderApi({
-        serviceId: service.id,
-        serviceTitle: service.title,
-        region,
-        amount: totalAmount,
-        currency: currencyCode,
-        clientDetails: formData,
-      });
-
-      const captureData = await capturePayPalOrderApi({
-        orderID,
-        serviceId: service.id,
-        serviceTitle: service.title,
-        region,
-        amount: totalAmount,
-        currency: currencyCode,
-        clientDetails: formData,
-      });
-
-      if (captureData.success) {
-        navigate(`/booking-success/${captureData.bookingId}`);
-      } else {
-        throw new Error(captureData.error || 'Payment capture failed');
-      }
-    } catch (err) {
-      setProcessing(false);
-      setPaymentError(err.message || 'An error occurred during booking payment simulation.');
+      setPaymentError(err.message || 'Error capturing PayPal payment order');
     }
   };
 
@@ -202,7 +313,7 @@ export default function ServiceBookingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group text-xs font-bold text-slate-300 hover:text-[#F3D079] transition-colors">
             <ArrowLeft className="w-4 h-4 text-[#F3D079] group-hover:-translate-x-1 transition-transform" />
-            <span>Back to All Practice Areas</span>
+            <span>Back to Practice Areas</span>
           </Link>
 
           <Link to="/" className="flex items-center gap-2">
@@ -237,14 +348,14 @@ export default function ServiceBookingPage() {
         <div className="space-y-3 mb-10 text-center sm:text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-xs font-bold text-gold-gradient uppercase tracking-widest">
             <Sparkles className="w-3.5 h-3.5 text-[#F3D079]" />
-            <span>Secure Legal Booking Portal</span>
+            <span>Multi-Gateway Secure Legal Booking</span>
           </div>
 
           <h1 className="font-cinzel text-3xl sm:text-5xl font-extrabold text-white">
-            Book Strategy Service
+            Book Legal Consultation
           </h1>
           <p className="text-slate-300 text-sm sm:text-base font-light max-w-3xl">
-            Confirm your booking and secure direct legal consultation with Dr. Karanam Rajesh Kumar. Select your region, enter your details, and complete your secure payment.
+            Select your region to access local UPI options (Google Pay, PhonePe, Paytm, BHIM) or PayPal international payment options.
           </p>
         </div>
 
@@ -332,7 +443,7 @@ export default function ServiceBookingPage() {
             </div>
           </div>
 
-          {/* Right Column: Booking & PayPal Payment Form (7 cols) */}
+          {/* Right Column: Multi-Payment Gateway Booking Form (7 cols) */}
           <div className="lg:col-span-7 space-y-8">
             
             {/* Step 1: Region & Pricing Selector */}
@@ -362,7 +473,7 @@ export default function ServiceBookingPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span className="text-base">🇮🇳</span> India Resident
+                      <span className="text-base">🇮🇳</span> India Resident (UPI / Cards)
                     </span>
                     {region === 'india' && <CheckCircle2 className="w-4 h-4 text-[#F3D079]" />}
                   </div>
@@ -373,7 +484,7 @@ export default function ServiceBookingPage() {
                     Total Amount: <span className="text-slate-200 font-bold">₹589 INR</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
-                    For clients residing in India / Indian billing addresses.
+                    Supports Google Pay, PhonePe, Paytm, BHIM UPI & Cards.
                   </p>
                 </div>
 
@@ -388,7 +499,7 @@ export default function ServiceBookingPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span className="text-base">🌐</span> International Client (NRIs)
+                      <span className="text-base">🌐</span> International Client (PayPal)
                     </span>
                     {region === 'international' && <CheckCircle2 className="w-4 h-4 text-[#F3D079]" />}
                   </div>
@@ -399,7 +510,7 @@ export default function ServiceBookingPage() {
                     Total Amount: <span className="text-slate-200 font-bold">$5.00 USD</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
-                    For clients residing outside India (USA, UAE, UK, Canada, EU).
+                    Supports PayPal Balance & International Cards globally.
                   </p>
                 </div>
 
@@ -511,7 +622,7 @@ export default function ServiceBookingPage() {
                   {formErrors.country && <p className="text-[11px] text-red-400 mt-1">{formErrors.country}</p>}
                 </div>
 
-                {/* Specific Notes / Case Summary */}
+                {/* Case Summary */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-[#F3D079]" />
@@ -529,7 +640,7 @@ export default function ServiceBookingPage() {
               </div>
             </div>
 
-            {/* Payment Summary & PayPal Checkout Box */}
+            {/* Payment Summary & Gateway Box */}
             <div className="bg-navy-card rounded-2xl border border-[#D4AF37]/40 p-6 sm:p-8 space-y-6 shadow-2xl">
               
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -567,25 +678,196 @@ export default function ServiceBookingPage() {
                 </div>
               )}
 
-              {/* PayPal Smart Payment Buttons */}
-              <div className="space-y-4">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                  Select Payment Method (Secure PayPal Gateway):
-                </span>
+              {/* Multi-Payment Gateway Selector */}
+              {processing ? (
+                <div className="py-12 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-3">
+                  <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
+                  <p className="text-xs text-slate-300 font-semibold">
+                    Processing Payment & Dispatching Admin Notification...
+                  </p>
+                </div>
+              ) : region === 'india' ? (
+                /* INDIA REGION PAYMENT GATEWAYS (UPI: GPay, PhonePe, Paytm, BHIM & Razorpay) */
+                <div className="space-y-6">
+                  
+                  {/* India Sub-Payment Method Switcher */}
+                  <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setIndiaPaymentTab('UPI_APPS')}
+                      className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                        indiaPaymentTab === 'UPI_APPS'
+                          ? 'bg-gold-gradient text-slate-950 font-bold shadow-md'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>UPI Apps & QR</span>
+                    </button>
 
-                {processing ? (
-                  <div className="py-8 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-3">
-                    <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
-                    <p className="text-xs text-slate-300 font-semibold">
-                      Processing Payment Capture & Dispatching Admin Notification...
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIndiaPaymentTab('RAZORPAY')}
+                      className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                        indiaPaymentTab === 'RAZORPAY'
+                          ? 'bg-gold-gradient text-slate-950 font-bold shadow-md'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Razorpay (UPI / Cards)</span>
+                    </button>
                   </div>
-                ) : (
+
+                  {/* TAB 1: UPI APPS & DYNAMIC QR CODE */}
+                  {indiaPaymentTab === 'UPI_APPS' && (
+                    <div className="space-y-5 animate-fadeIn">
+                      
+                      {/* UPI App Selection Pills */}
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold text-slate-300 block">
+                          Select UPI Payment App:
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { name: 'Google Pay', icon: '🟢', color: 'border-emerald-500/50 bg-emerald-950/20' },
+                            { name: 'PhonePe', icon: '🟣', color: 'border-purple-500/50 bg-purple-950/20' },
+                            { name: 'Paytm', icon: '🔵', color: 'border-sky-500/50 bg-sky-950/20' },
+                            { name: 'BHIM UPI', icon: '🟧', color: 'border-amber-500/50 bg-amber-950/20' },
+                          ].map((app) => (
+                            <button
+                              key={app.name}
+                              type="button"
+                              onClick={() => setSelectedUpiApp(app.name)}
+                              className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                                selectedUpiApp === app.name
+                                  ? 'border-[#D4AF37] bg-gold-glass text-[#F3D079] ring-1 ring-[#D4AF37]'
+                                  : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+                              }`}
+                            >
+                              <span>{app.icon}</span>
+                              <span>{app.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tap to Pay & QR Code Display Box */}
+                      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-center">
+                        
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+                          
+                          {/* QR Code Container */}
+                          <div className="bg-white p-3 rounded-xl border-2 border-[#D4AF37] shadow-xl shrink-0">
+                            <img
+                              src={qrCodeUrl}
+                              alt="ILPU Merchant UPI QR Code"
+                              className="w-40 h-40 object-contain mx-auto"
+                            />
+                            <span className="text-[10px] font-bold font-mono text-slate-900 block mt-1">
+                              Scan with Any UPI App
+                            </span>
+                          </div>
+
+                          {/* Direct Mobile UPI App Link */}
+                          <div className="space-y-3 text-left max-w-xs">
+                            <div className="space-y-1">
+                              <span className="text-[11px] font-bold text-[#F3D079] uppercase tracking-wider block">
+                                Pay ₹589 via {selectedUpiApp}
+                              </span>
+                              <p className="text-[11px] text-slate-300 font-light">
+                                Scan the QR code using Google Pay, PhonePe, Paytm, or BHIM. On mobile, tap the direct link below.
+                              </p>
+                            </div>
+
+                            <a
+                              href={upiDeepLink}
+                              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all w-full shadow-lg"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Open {selectedUpiApp} App</span>
+                            </a>
+
+                            <div className="text-[10px] text-slate-400 font-mono bg-slate-950 p-2 rounded border border-slate-800/80">
+                              UPI VPA: <span className="text-white font-bold">{upiId}</span>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* UTR / Transaction Reference Input */}
+                        <div className="pt-4 border-t border-slate-800 space-y-3 text-left">
+                          <label className="block text-xs font-semibold text-slate-300 flex items-center justify-between">
+                            <span>UPI Ref / UTR No. (Optional for Instant Confirm)</span>
+                            <span className="text-[10px] text-slate-400 font-mono">12-digit number</span>
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              placeholder="e.g. 326718293014"
+                              value={upiUtr}
+                              onChange={(e) => setUpiUtr(e.target.value)}
+                              className="flex-1 bg-slate-950 border border-slate-800 focus:border-[#D4AF37] rounded-xl px-3.5 py-2.5 text-xs text-white outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleDirectUpiPayment}
+                              className="px-5 py-2.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs hover:brightness-110 transition-all border border-[#D4AF37] shrink-0"
+                            >
+                              Confirm Payment
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* TAB 2: RAZORPAY GATEWAY */}
+                  {indiaPaymentTab === 'RAZORPAY' && (
+                    <div className="space-y-4 animate-fadeIn">
+                      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-gold-gradient p-[1px] mx-auto">
+                          <div className="w-full h-full bg-[#060B18] rounded-[15px] flex items-center justify-center text-[#F3D079]">
+                            <Zap className="w-6 h-6" />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="font-cinzel text-base font-bold text-white">
+                            Razorpay Multi-Method Checkout
+                          </h4>
+                          <p className="text-xs text-slate-300 font-light max-w-md mx-auto">
+                            Pay securely using Google Pay, PhonePe, Paytm, BHIM, Debit/Credit Cards, or Indian NetBanking with instant signature verification.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleRazorpayPayment}
+                          className="w-full py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm shadow-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37]"
+                        >
+                          <Zap className="w-4 h-4 fill-slate-950" />
+                          <span>Launch Razorpay Gateway (₹589 INR)</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              ) : (
+                /* INTERNATIONAL REGION PAYMENT GATEWAYS (PayPal & Credit/Debit Cards) */
+                <div className="space-y-4">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
+                    PayPal International Gateway ($5.00 USD):
+                  </span>
+
                   <div className="space-y-3">
                     <PayPalScriptProvider
                       options={{
                         "client-id": paypalClientId,
-                        currency: currencyCode,
+                        currency: 'USD',
                         components: "buttons"
                       }}
                     >
@@ -598,44 +880,38 @@ export default function ServiceBookingPage() {
                         }}
                         createOrder={createPayPalOrder}
                         onApprove={onPayPalApprove}
-                        onCancel={() => {
-                          setProcessing(false);
-                        }}
+                        onCancel={() => setProcessing(false)}
                         onError={(err) => {
                           setProcessing(false);
                           console.log("PayPal SDK Error:", err);
-                          if (err && err.message && err.message.includes("Form validation failed")) {
-                            setPaymentError("Please fill in all required client details (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.");
-                          } else {
-                            setPaymentError("PayPal checkout notice: Please verify your credentials or click Direct Confirmation below.");
-                          }
+                          setPaymentError("PayPal checkout notice: Please verify your credentials or click Direct Confirmation below.");
                         }}
                       />
                     </PayPalScriptProvider>
-
-                    {/* Fallback / Instant Booking Trigger */}
-                    <div className="pt-2 border-t border-slate-800/80 text-center space-y-2">
-                      <p className="text-[11px] text-slate-400">
-                        Prefer instant verification or testing without PayPal popups?
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleSimulatePayment}
-                        className="w-full py-3.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37]"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        <span>Confirm Booking & Send Details to Admin ({region === 'india' ? '₹589' : '$5 USD'})</span>
-                      </button>
-                    </div>
                   </div>
-                )}
+                </div>
+              )}
+
+              {/* Fallback Direct Booking Trigger */}
+              <div className="pt-3 border-t border-slate-800 text-center space-y-2">
+                <p className="text-[11px] text-slate-400">
+                  Prefer direct priority verification without gateway popups?
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDirectUpiPayment}
+                  className="w-full py-3.5 rounded-xl bg-slate-900 text-slate-200 hover:text-white font-bold text-xs shadow-md hover:border-[#D4AF37] transition-all flex items-center justify-center gap-2 border border-slate-800"
+                >
+                  <CreditCard className="w-4 h-4 text-[#F3D079]" />
+                  <span>Confirm Booking & Notify Admin ({region === 'india' ? '₹589' : '$5 USD'})</span>
+                </button>
               </div>
 
               {/* Email dispatch notice */}
               <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  After successful payment, full booking details and receipt will be dispatched automatically to the admin email configured in environment variables.
+                  After successful payment, full booking details and receipt will be dispatched automatically to the admin email ({import.meta.env.VITE_ADMIN_EMAIL || 'mtharun342@gmail.com'}).
                 </span>
               </div>
 

@@ -14,6 +14,21 @@ const bookingSchema = new mongoose.Schema(
     paypalCaptureId: {
       type: String
     },
+    paymentProvider: {
+      type: String,
+      default: 'PAYPAL'
+    },
+    paymentMethod: {
+      type: String,
+      default: 'CARD'
+    },
+    transactionId: {
+      type: String
+    },
+    webhookVerified: {
+      type: Boolean,
+      default: false
+    },
     status: {
       type: String,
       default: 'PAID'
