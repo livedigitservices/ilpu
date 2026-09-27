@@ -1,5 +1,6 @@
 import React from 'react';
-import { Scale, Phone, MapPin, Mail, ArrowUp, Globe, Shield } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Scale, Phone, MapPin, Mail, ArrowUp, Globe, Shield, Lock } from 'lucide-react';
 
 export default function Footer({ onOpenConsultation }) {
   const scrollToTop = () => {
@@ -112,8 +113,13 @@ export default function Footer({ onOpenConsultation }) {
 
         {/* Bottom Bar */}
         <div className="pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
-          <div>
-            © {new Date().getFullYear()} International Legal Processing Unit (ILPU). All Rights Reserved.
+          <div className="flex flex-wrap items-center gap-3">
+            <span>© {new Date().getFullYear()} International Legal Processing Unit (ILPU). All Rights Reserved.</span>
+            <span className="hidden sm:inline text-slate-800">•</span>
+            <Link to="/admin" className="text-slate-400 hover:text-[#F3D079] transition-colors flex items-center gap-1 font-mono">
+              <Lock className="w-3.5 h-3.5 text-[#F3D079]" />
+              <span>Chambers Admin</span>
+            </Link>
           </div>
           <button
             onClick={scrollToTop}
