@@ -1,61 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /**
- * 1. Creates a new PayPal order on the backend (International Clients)
- */
-export const createPayPalOrderApi = async ({ serviceId, serviceTitle, region, amount, currency, clientDetails }) => {
-  const response = await fetch(`${API_BASE_URL}/paypal/create-order`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      serviceId,
-      serviceTitle,
-      region,
-      amount,
-      currency,
-      clientDetails,
-    }),
-  });
-
-  const data = await response.json();
-  if (!response.ok || (!data.orderID && !data.id)) {
-    throw new Error(data.error || 'Failed to create payment order');
-  }
-
-  return data.orderID || data.id;
-};
-
-/**
- * 2. Captures a completed PayPal order, saves booking to MongoDB, and triggers admin email
- */
-export const capturePayPalOrderApi = async ({ orderID, serviceId, serviceTitle, region, amount, currency, clientDetails }) => {
-  const response = await fetch(`${API_BASE_URL}/paypal/capture-order`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      orderID,
-      serviceId,
-      serviceTitle,
-      region,
-      amount,
-      currency,
-      clientDetails,
-    }),
-  });
-
-  const data = await response.json();
-  if (!response.ok || !data.success) {
-    throw new Error(data.error || 'Failed to capture payment order');
-  }
-
-  return data;
-};
-
-/**
  * 3. Creates a Razorpay Order for Indian UPI / Card Checkout
  */
 export const createRazorpayOrderApi = async ({ serviceId, serviceTitle, region, amount, currency, clientDetails }) => {

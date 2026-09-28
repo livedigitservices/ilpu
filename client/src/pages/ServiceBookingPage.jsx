@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { servicesData, PRICING_INFO } from '../data/servicesData';
 import {
-  createPayPalOrderApi,
-  capturePayPalOrderApi,
   createRazorpayOrderApi,
   verifyRazorpayPaymentApi,
   verifyDirectUpiPaymentApi
@@ -275,56 +272,6 @@ export default function ServiceBookingPage() {
     }
   };
 
-  // 3. International PayPal Payment Handlers
-  const createPayPalOrder = async () => {
-    if (!validateForm()) {
-      setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.');
-      throw new Error('Form validation failed');
-    }
-
-    setPaymentError(null);
-
-    try {
-      const orderID = await createPayPalOrderApi({
-        serviceId: service.id,
-        serviceTitle: service.title,
-        region,
-        amount: 5,
-        currency: 'USD',
-        clientDetails: formData,
-      });
-
-      return orderID;
-    } catch (err) {
-      setPaymentError(err.message || 'Error creating PayPal payment order');
-      throw err;
-    }
-  };
-
-  const onPayPalApprove = async (data) => {
-    setProcessing(true);
-    setPaymentError(null);
-
-    try {
-      const captureData = await capturePayPalOrderApi({
-        orderID: data.orderID,
-        serviceId: service.id,
-        serviceTitle: service.title,
-        region,
-        amount: 5,
-        currency: 'USD',
-        clientDetails: formData,
-      });
-
-      navigate(`/booking-success/${captureData.bookingId}`);
-    } catch (err) {
-      setProcessing(false);
-      setPaymentError(err.message || 'Error capturing PayPal payment order');
-    }
-  };
-
-  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test';
-
   return (
     <div className="min-h-screen bg-[#060B18] text-slate-100 font-sans selection:bg-[#D4AF37] selection:text-[#060B18] pb-24">
       
@@ -375,7 +322,7 @@ export default function ServiceBookingPage() {
             Book Legal Consultation
           </h1>
           <p className="text-slate-300 text-sm sm:text-base font-light max-w-3xl">
-            Select your region to complete your booking. For India, use Razorpay’s official payment interface (UPI QR, GPay, PhonePe, Paytm & Cards). For International, use PayPal.
+            Select your region to complete your booking. Razorpay’s official payment interface supports both domestic (UPI QR, GPay, PhonePe, Paytm & Cards) and international multi-currency card payments.
           </p>
         </div>
 
@@ -530,7 +477,7 @@ export default function ServiceBookingPage() {
                     Total Amount: <span className="text-slate-200 font-bold">$5.00 USD</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
-                    Razorpay Gateway (International Cards & Multi-Currency) & PayPal Smart Checkout.
+                    Razorpay Official Gateway: International Cards (Visa, Mastercard, AMEX, Discover).
                   </p>
                 </div>
 
@@ -754,67 +701,44 @@ export default function ServiceBookingPage() {
 
                 </div>
               ) : (
-                /* INTERNATIONAL PAYMENTS: RAZORPAY + PAYPAL */
+                /* INTERNATIONAL PAYMENTS VIA RAZORPAY */
                 <div className="space-y-5 animate-fadeIn">
-                  
-                  {/* Option 1: Razorpay Official Gateway (Multi-Currency & International Cards) */}
-                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-gold-gradient p-[1px]">
-                        <div className="w-full h-full bg-[#060B18] rounded-[7px] flex items-center justify-center text-[#F3D079]">
-                          <Zap className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-cinzel text-sm font-bold text-white">
-                          Razorpay Official Gateway (Multi-Currency)
-                        </h4>
-                        <p className="text-[11px] text-slate-300">
-                          Pay $5.00 USD using International Credit/Debit Cards (Visa, Mastercard, AMEX, Discover).
-                        </p>
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-center">
+                    
+                    <div className="w-12 h-12 rounded-2xl bg-gold-gradient p-[1px] mx-auto">
+                      <div className="w-full h-full bg-[#060B18] rounded-[15px] flex items-center justify-center text-[#F3D079]">
+                        <Zap className="w-6 h-6" />
                       </div>
                     </div>
 
+                    <div className="space-y-1">
+                      <h4 className="font-cinzel text-base font-bold text-white">
+                        Razorpay International Payment Gateway
+                      </h4>
+                      <p className="text-xs text-slate-300 font-light max-w-md mx-auto">
+                        Pay $5.00 USD using International Credit Cards, Debit Cards (Visa, Mastercard, AMEX, Discover), or multi-currency cards.
+                      </p>
+                    </div>
+
+                    {/* Supported International Cards Visual Badges */}
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                        <span>💳</span> International Credit & Debit Cards
+                      </span>
+                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                        <span>🌐</span> Multi-Currency (USD $)
+                      </span>
+                    </div>
+
+                    {/* Primary Razorpay International Trigger Button */}
                     <button
                       type="button"
                       onClick={handleRazorpayPayment}
-                      className="w-full py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm shadow-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37]"
+                      className="w-full py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm shadow-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37] mt-2"
                     >
                       <Zap className="w-4 h-4 fill-slate-950" />
                       <span>Pay $5.00 USD via Razorpay Gateway</span>
                     </button>
-                  </div>
-
-                  {/* Option 2: PayPal International Gateway */}
-                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                      Or Pay via PayPal Smart Checkout ($5.00 USD):
-                    </span>
-
-                    <PayPalScriptProvider
-                      options={{
-                        "client-id": paypalClientId,
-                        currency: 'USD',
-                        components: "buttons"
-                      }}
-                    >
-                      <PayPalButtons
-                        style={{
-                          layout: "vertical",
-                          color: "gold",
-                          shape: "rect",
-                          label: "pay"
-                        }}
-                        createOrder={createPayPalOrder}
-                        onApprove={onPayPalApprove}
-                        onCancel={() => setProcessing(false)}
-                        onError={(err) => {
-                          setProcessing(false);
-                          console.log("PayPal SDK Error:", err);
-                          setPaymentError("PayPal checkout notice: Please verify your credentials or use Razorpay / Direct Confirmation.");
-                        }}
-                      />
-                    </PayPalScriptProvider>
                   </div>
 
                 </div>
