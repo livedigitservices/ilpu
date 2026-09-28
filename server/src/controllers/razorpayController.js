@@ -7,7 +7,7 @@ import { Booking } from '../models/Booking.js';
 
 dotenv.config();
 
-const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_ILPULegal2026';
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_ThLYeWwjJM4OQI';
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'ilpu_razorpay_secret_key_2026';
 
 let razorpayInstance = null;
@@ -33,39 +33,48 @@ export const createRazorpayOrder = async (req, res) => {
     const receiptId = `receipt_ilpu_${Date.now()}`;
 
     if (!razorpayInstance) {
-      console.warn('⚠️ [Razorpay Key Notice]: Using placeholder RAZORPAY_KEY_ID. Real Razorpay API requires a valid rzp_test_... key from dashboard.razorpay.com');
+      console.warn('⚠️ [Razorpay Key Notice]: Missing or placeholder Razorpay credentials.');
       return res.status(400).json({
         success: false,
         isPlaceholderKey: true,
-        error: 'Please add your Razorpay Test API Key (rzp_test_...) from dashboard.razorpay.com into server/.env & client/.env, or click Direct Confirmation below to confirm your booking.'
+        error: 'Please add your matching RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET from dashboard.razorpay.com into server/.env, or click Direct Confirmation below to complete your booking.'
       });
     }
 
-    const razorpayOrder = await razorpayInstance.orders.create({
-      amount: amountInPaise,
-      currency: currency,
-      receipt: receiptId,
-      notes: {
-        serviceId: serviceId || 'general-consultation',
-        serviceTitle: serviceTitle || 'Legal Strategy Consultation',
-        clientName: clientDetails?.name || 'Client',
-        clientEmail: clientDetails?.email || ''
-      }
-    });
+    try {
+      const razorpayOrder = await razorpayInstance.orders.create({
+        amount: amountInPaise,
+        currency: currency,
+        receipt: receiptId,
+        notes: {
+          serviceId: serviceId || 'general-consultation',
+          serviceTitle: serviceTitle || 'Legal Strategy Consultation',
+          clientName: clientDetails?.name || 'Client',
+          clientEmail: clientDetails?.email || ''
+        }
+      });
 
-    return res.status(200).json({
-      success: true,
-      orderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
-      keyId: RAZORPAY_KEY_ID
-    });
+      return res.status(200).json({
+        success: true,
+        orderId: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        keyId: RAZORPAY_KEY_ID
+      });
+    } catch (razorpayErr) {
+      console.error('⚠️ [Razorpay API Authentication Error]:', razorpayErr.error || razorpayErr.message || razorpayErr);
+      return res.status(400).json({
+        success: false,
+        error: 'Razorpay Key Secret mismatch or authentication failed. Please verify your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in server/.env, or click Direct Confirmation below to confirm your booking.',
+        details: razorpayErr.error?.description || razorpayErr.message
+      });
+    }
 
   } catch (err) {
-    console.error('⚠️ [Razorpay Create Order Error]:', err);
+    console.error('⚠️ [Razorpay Create Order System Error]:', err);
     return res.status(500).json({
       success: false,
-      error: 'Failed to create Razorpay payment order',
+      error: 'System error while creating Razorpay payment order',
       details: err.message
     });
   }
