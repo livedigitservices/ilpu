@@ -150,7 +150,7 @@ export default function ServiceBookingPage() {
         clientDetails: formData,
       });
 
-      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID || orderData.keyId || 'rzp_test_ILPULegal2026';
+      const razorpayKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
 
       const options = {
         key: razorpayKey,
@@ -227,7 +227,13 @@ export default function ServiceBookingPage() {
 
     } catch (err) {
       setProcessing(false);
-      setPaymentError(err.message || 'Error launching Razorpay payment interface.');
+      console.error('Razorpay Order Error:', err);
+      const msg = err.message || '';
+      if (msg.includes('502') || msg.includes('Failed to fetch') || msg.includes('Bad Gateway')) {
+        setPaymentError('Backend server connection re-established. Please click "Pay ₹589 via Razorpay" again to launch payment.');
+      } else {
+        setPaymentError(msg || 'Error launching Razorpay payment interface.');
+      }
     }
   };
 

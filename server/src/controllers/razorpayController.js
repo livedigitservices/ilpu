@@ -11,7 +11,7 @@ const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_test_ILPULegal2026';
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'ilpu_razorpay_secret_key_2026';
 
 let razorpayInstance = null;
-if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && !RAZORPAY_KEY_ID.includes('test_ILPULegal2026')) {
+if (RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET && !RAZORPAY_KEY_ID.includes('ILPULegal2026')) {
   try {
     razorpayInstance = new Razorpay({
       key_id: RAZORPAY_KEY_ID.trim(),
@@ -32,35 +32,26 @@ export const createRazorpayOrder = async (req, res) => {
     const amountInPaise = Math.round(Number(amount) * 100);
     const receiptId = `receipt_ilpu_${Date.now()}`;
 
-    let razorpayOrder = null;
-
-    if (razorpayInstance) {
-      razorpayOrder = await razorpayInstance.orders.create({
-        amount: amountInPaise,
-        currency: currency,
-        receipt: receiptId,
-        notes: {
-          serviceId: serviceId || 'general-consultation',
-          serviceTitle: serviceTitle || 'Legal Strategy Consultation',
-          clientName: clientDetails?.name || 'Client',
-          clientEmail: clientDetails?.email || ''
-        }
+    if (!razorpayInstance) {
+      console.warn('⚠️ [Razorpay Key Notice]: Using placeholder RAZORPAY_KEY_ID. Real Razorpay API requires a valid rzp_test_... key from dashboard.razorpay.com');
+      return res.status(400).json({
+        success: false,
+        isPlaceholderKey: true,
+        error: 'Please add your Razorpay Test API Key (rzp_test_...) from dashboard.razorpay.com into server/.env & client/.env, or click Direct Confirmation below to confirm your booking.'
       });
-    } else {
-      // Production Fallback / Development simulated order ID
-      const simulatedOrderId = `order_rzp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-      razorpayOrder = {
-        id: simulatedOrderId,
-        entity: 'order',
-        amount: amountInPaise,
-        amount_paid: 0,
-        amount_due: amountInPaise,
-        currency: currency,
-        receipt: receiptId,
-        status: 'created',
-        created_at: Math.floor(Date.now() / 1000)
-      };
     }
+
+    const razorpayOrder = await razorpayInstance.orders.create({
+      amount: amountInPaise,
+      currency: currency,
+      receipt: receiptId,
+      notes: {
+        serviceId: serviceId || 'general-consultation',
+        serviceTitle: serviceTitle || 'Legal Strategy Consultation',
+        clientName: clientDetails?.name || 'Client',
+        clientEmail: clientDetails?.email || ''
+      }
+    });
 
     return res.status(200).json({
       success: true,
@@ -108,7 +99,7 @@ export const verifyRazorpayPayment = async (req, res) => {
     let isValidSignature = true;
 
     // Verify HMAC-SHA256 signature if live secret is available
-    if (RAZORPAY_KEY_SECRET && !RAZORPAY_KEY_SECRET.includes('ilpu_razorpay_secret_key_2026') && razorpay_signature) {
+    if (RAZORPAY_KEY_SECRET && !RAZORPAY_KEY_SECRET.includes('ILPULegal2026') && razorpay_signature) {
       const generatedSignature = crypto
         .createHmac('sha256', RAZORPAY_KEY_SECRET)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
