@@ -125,7 +125,7 @@ export default function ServiceBookingPage() {
   const totalAmount = region === 'india' ? 589 : 5;
   const currencyCode = region === 'india' ? 'INR' : 'USD';
 
-  // 1. Official Razorpay Payment Handler (UPI Apps, UPI QR Code, Debit/Credit Cards, Netbanking)
+  // 1. Official Razorpay Payment Handler (UPI Apps, UPI QR Code, Debit/Credit Cards, International Cards)
   const handleRazorpayPayment = async () => {
     if (!validateForm()) {
       setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.');
@@ -134,6 +134,9 @@ export default function ServiceBookingPage() {
 
     setProcessing(true);
     setPaymentError(null);
+
+    const payAmount = totalAmount;
+    const payCurrency = currencyCode;
 
     try {
       const isLoaded = await loadRazorpayScript();
@@ -145,8 +148,8 @@ export default function ServiceBookingPage() {
         serviceId: service.id,
         serviceTitle: service.title,
         region,
-        amount: 589,
-        currency: 'INR',
+        amount: payAmount,
+        currency: payCurrency,
         clientDetails: formData,
       });
 
@@ -155,7 +158,7 @@ export default function ServiceBookingPage() {
       const options = {
         key: razorpayKey,
         amount: orderData.amount,
-        currency: orderData.currency || 'INR',
+        currency: orderData.currency || payCurrency,
         name: 'ILPU Legal Expert',
         description: `Strategy Consultation - ${service.title}`,
         order_id: orderData.orderId,
@@ -167,29 +170,31 @@ export default function ServiceBookingPage() {
         theme: {
           color: '#D4AF37',
         },
-        config: {
-          display: {
-            blocks: {
-              upi: {
-                name: 'Pay via UPI (GPay, PhonePe, Paytm, QR)',
-                instruments: [
-                  { method: 'upi' }
-                ]
+        ...(payCurrency === 'INR' ? {
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: 'Pay via UPI (GPay, PhonePe, Paytm, QR)',
+                  instruments: [
+                    { method: 'upi' }
+                  ]
+                },
+                other: {
+                  name: 'Cards & NetBanking',
+                  instruments: [
+                    { method: 'card' },
+                    { method: 'netbanking' }
+                  ]
+                }
               },
-              other: {
-                name: 'Cards & NetBanking',
-                instruments: [
-                  { method: 'card' },
-                  { method: 'netbanking' }
-                ]
+              sequence: ['block.upi', 'block.other'],
+              preferences: {
+                show_default_blocks: true
               }
-            },
-            sequence: ['block.upi', 'block.other'],
-            preferences: {
-              show_default_blocks: true
             }
           }
-        },
+        } : {}),
         handler: async function (response) {
           try {
             const verification = await verifyRazorpayPaymentApi({
@@ -200,8 +205,8 @@ export default function ServiceBookingPage() {
               serviceId: service.id,
               serviceTitle: service.title,
               region,
-              amount: 589,
-              currency: 'INR',
+              amount: payAmount,
+              currency: payCurrency,
               clientDetails: formData,
             });
 
@@ -230,7 +235,7 @@ export default function ServiceBookingPage() {
       console.error('Razorpay Order Error:', err);
       const msg = err.message || '';
       if (msg.includes('502') || msg.includes('Failed to fetch') || msg.includes('Bad Gateway')) {
-        setPaymentError('Backend server connection re-established. Please click "Pay ₹589 via Razorpay" again to launch payment.');
+        setPaymentError(`Backend server connection re-established. Please click "Pay ${payCurrency === 'INR' ? '₹589' : '$5 USD'} via Razorpay" again to launch payment.`);
       } else {
         setPaymentError(msg || 'Error launching Razorpay payment interface.');
       }
@@ -525,7 +530,7 @@ export default function ServiceBookingPage() {
                     Total Amount: <span className="text-slate-200 font-bold">$5.00 USD</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
-                    PayPal Gateway: PayPal Balance & International Cards globally.
+                    Razorpay Gateway (International Cards & Multi-Currency) & PayPal Smart Checkout.
                   </p>
                 </div>
 
@@ -749,13 +754,43 @@ export default function ServiceBookingPage() {
 
                 </div>
               ) : (
-                /* INTERNATIONAL PAYPAL PAYMENT INTERFACE */
-                <div className="space-y-4">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                    PayPal International Gateway ($5.00 USD):
-                  </span>
+                /* INTERNATIONAL PAYMENTS: RAZORPAY + PAYPAL */
+                <div className="space-y-5 animate-fadeIn">
+                  
+                  {/* Option 1: Razorpay Official Gateway (Multi-Currency & International Cards) */}
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gold-gradient p-[1px]">
+                        <div className="w-full h-full bg-[#060B18] rounded-[7px] flex items-center justify-center text-[#F3D079]">
+                          <Zap className="w-4 h-4" />
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-cinzel text-sm font-bold text-white">
+                          Razorpay Official Gateway (Multi-Currency)
+                        </h4>
+                        <p className="text-[11px] text-slate-300">
+                          Pay $5.00 USD using International Credit/Debit Cards (Visa, Mastercard, AMEX, Discover).
+                        </p>
+                      </div>
+                    </div>
 
-                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={handleRazorpayPayment}
+                      className="w-full py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm shadow-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37]"
+                    >
+                      <Zap className="w-4 h-4 fill-slate-950" />
+                      <span>Pay $5.00 USD via Razorpay Gateway</span>
+                    </button>
+                  </div>
+
+                  {/* Option 2: PayPal International Gateway */}
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
+                      Or Pay via PayPal Smart Checkout ($5.00 USD):
+                    </span>
+
                     <PayPalScriptProvider
                       options={{
                         "client-id": paypalClientId,
@@ -776,11 +811,12 @@ export default function ServiceBookingPage() {
                         onError={(err) => {
                           setProcessing(false);
                           console.log("PayPal SDK Error:", err);
-                          setPaymentError("PayPal checkout notice: Please verify your credentials or click Direct Confirmation below.");
+                          setPaymentError("PayPal checkout notice: Please verify your credentials or use Razorpay / Direct Confirmation.");
                         }}
                       />
                     </PayPalScriptProvider>
                   </div>
+
                 </div>
               )}
 

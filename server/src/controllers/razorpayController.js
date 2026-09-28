@@ -133,24 +133,26 @@ export const verifyRazorpayPayment = async (req, res) => {
     const country = client.country || 'India';
     const notes = client.notes || client.details || '';
 
-    const amountPaidStr = `₹499 + 18% GST (Total ₹589 INR)`;
+    const amountPaidStr = (currency === 'USD' || region === 'international')
+      ? `$${amount} USD`
+      : `₹499 + 18% GST (Total ₹${amount} INR)`;
 
     const fullBookingRecord = {
       id: bookingId,
       bookingId: bookingId,
       paypalOrderId: razorpay_order_id,
       paypalCaptureId: razorpay_payment_id,
-      paymentProvider: 'RAZORPAY_UPI',
-      paymentMethod: paymentMethod || 'UPI_GPAY',
+      paymentProvider: 'RAZORPAY',
+      paymentMethod: paymentMethod || 'RAZORPAY_OFFICIAL_GATEWAY',
       transactionId: razorpay_payment_id,
       status: 'PAID',
       webhookVerified: true,
       serviceId: serviceId || 'general-consultation',
       serviceTitle: serviceTitle || '1-on-1 Legal Strategy Consultation',
-      region: 'india',
+      region: region || 'india',
       pricingTier: amountPaidStr,
-      amount: Number(amount) || 589,
-      currency: 'INR',
+      amount: Number(amount) || (region === 'international' ? 5 : 589),
+      currency: currency || (region === 'international' ? 'USD' : 'INR'),
       amountPaid: amountPaidStr,
       clientDetails: {
         name,
