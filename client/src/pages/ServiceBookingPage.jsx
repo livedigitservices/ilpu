@@ -230,8 +230,10 @@ export default function ServiceBookingPage() {
     } catch (err) {
       setProcessing(false);
       console.error('Razorpay Order Error:', err);
-      const msg = err.message || '';
-      if (msg.includes('502') || msg.includes('Failed to fetch') || msg.includes('Bad Gateway')) {
+      const msg = err.message || err.toString() || '';
+      if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('Key Secret mismatch') || msg.includes('authentication failed')) {
+        setPaymentError('Razorpay API Key Unauthorized (401). Please check that your RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET in server/.env are valid, or click "Confirm Booking & Notify Admin" below to complete your booking directly.');
+      } else if (msg.includes('502') || msg.includes('Failed to fetch') || msg.includes('Bad Gateway')) {
         setPaymentError(`Backend server connection re-established. Please click "Pay ${payCurrency === 'INR' ? '₹589' : '$5 USD'} via Razorpay" again to launch payment.`);
       } else {
         setPaymentError(msg || 'Error launching Razorpay payment interface.');
