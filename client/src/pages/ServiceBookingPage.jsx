@@ -150,7 +150,12 @@ export default function ServiceBookingPage() {
         clientDetails: formData,
       });
 
-      const razorpayKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const rawKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      const razorpayKey = (rawKey && rawKey !== 'undefined' && rawKey !== 'null') ? rawKey.trim() : null;
+
+      if (!razorpayKey) {
+        throw new Error('Razorpay Key ID is undefined. Please set VITE_RAZORPAY_KEY_ID in Vercel and RAZORPAY_KEY_ID in Render environment variables, or click "Confirm Booking & Notify Admin" below.');
+      }
 
       const options = {
         key: razorpayKey,
