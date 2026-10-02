@@ -100,7 +100,7 @@ export default function ServiceBookingPage() {
   const validateForm = () => {
     const errors = {};
     if (!formData.name.trim()) errors.name = 'Full name is required';
-    if (!formData.email.trim() || !formData.email.includes('@')) errors.email = 'Valid email address is required';
+    if (formData.email.trim() && !formData.email.includes('@')) errors.email = 'Please enter a valid email address';
     if (!formData.phone.trim()) errors.phone = 'Phone / WhatsApp number is required';
     if (!formData.country.trim()) errors.country = 'Country is required';
 
@@ -116,7 +116,7 @@ export default function ServiceBookingPage() {
     return true;
   };
 
-  const isFormFilled = formData.name.trim() && formData.email.trim() && formData.phone.trim() && formData.country.trim();
+  const isFormFilled = formData.name.trim() && formData.phone.trim() && formData.country.trim();
 
   const currentPricing = region === 'india' ? PRICING_INFO.india : PRICING_INFO.international;
   const totalAmount = region === 'india' ? 589 : 5;
@@ -125,7 +125,7 @@ export default function ServiceBookingPage() {
   // 1. Official Razorpay Payment Handler (UPI Apps, UPI QR Code, Debit/Credit Cards, International Cards)
   const handleRazorpayPayment = async () => {
     if (!validateForm()) {
-      setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding to payment.');
+      setPaymentError('Please complete all required fields (Name, Phone, Country) in Step 2 above before proceeding to payment.');
       return;
     }
 
@@ -249,7 +249,7 @@ export default function ServiceBookingPage() {
   // 2. Direct Backup Confirmation Handler
   const handleDirectConfirmation = async () => {
     if (!validateForm()) {
-      setPaymentError('Please complete all required fields (Name, Email, Phone, Country) in Step 2 above before proceeding.');
+      setPaymentError('Please complete all required fields (Name, Phone, Country) in Step 2 above before proceeding.');
       return;
     }
 
@@ -534,12 +534,11 @@ export default function ServiceBookingPage() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
                       <Mail className="w-3.5 h-3.5 text-[#F3D079]" />
-                      <span>Email Address *</span>
+                      <span>Email Address (Optional)</span>
                     </label>
                     <input
                       type="email"
-                      required
-                      placeholder="name@example.com"
+                      placeholder="name@example.com (optional)"
                       value={formData.email}
                       onChange={(e) => {
                         setFormData({ ...formData, email: e.target.value });
@@ -648,7 +647,7 @@ export default function ServiceBookingPage() {
               {!isFormFilled && (
                 <div className="p-3.5 rounded-xl bg-slate-900 border border-amber-500/30 text-amber-400 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-                  <span>Please complete your Name, Email, Phone, and Country in Step 2 above before paying.</span>
+                  <span>Please complete your Name, Phone, and Country in Step 2 above before paying.</span>
                 </div>
               )}
 
