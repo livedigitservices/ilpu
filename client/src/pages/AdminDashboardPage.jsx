@@ -82,7 +82,7 @@ export default function AdminDashboardPage() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (passcode.trim() === ADMIN_PASSCODE || passcode.trim() === 'admin123') {
+    if (passcode.trim() === ADMIN_PASSCODE) {
       sessionStorage.setItem('ilpu_admin_authed', 'true');
       setIsAuthenticated(true);
       setAuthError('');
