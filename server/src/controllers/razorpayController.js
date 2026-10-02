@@ -172,8 +172,10 @@ export const verifyRazorpayPayment = async (req, res) => {
     // 1. Save to MongoDB Atlas & persistent JSON backup
     await saveBooking(fullBookingRecord);
 
-    // 2. Automatically dispatch admin email notification
-    await sendAdminBookingNotification(fullBookingRecord);
+    // 2. Automatically dispatch admin email notification in background (non-blocking for instant UI redirect)
+    sendAdminBookingNotification(fullBookingRecord).catch(mailErr => {
+      console.error('⚠️ [Background Mail Dispatch Warning]:', mailErr.message);
+    });
 
     return res.status(200).json({
       success: true,

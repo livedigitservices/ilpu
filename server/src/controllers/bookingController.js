@@ -77,7 +77,9 @@ export const createManualBooking = async (req, res) => {
     };
 
     await saveBooking(fullRecord);
-    await sendAdminBookingNotification(fullRecord);
+    sendAdminBookingNotification(fullRecord).catch(mailErr => {
+      console.error('⚠️ [Background Mail Dispatch Warning]:', mailErr.message);
+    });
 
     return res.status(200).json({ success: true, bookingId, booking: fullRecord });
   } catch (err) {
