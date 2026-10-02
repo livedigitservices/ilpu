@@ -199,9 +199,10 @@ export const handleRazorpayWebhook = async (req, res) => {
     const signature = req.headers['x-razorpay-signature'];
 
     if (signature && webhookSecret) {
+      const bodyToVerify = req.rawBody ? req.rawBody : JSON.stringify(req.body);
       const expectedSignature = crypto
         .createHmac('sha256', webhookSecret)
-        .update(JSON.stringify(req.body))
+        .update(bodyToVerify)
         .digest('hex');
 
       if (expectedSignature !== signature) {
@@ -213,10 +214,11 @@ export const handleRazorpayWebhook = async (req, res) => {
     const { event, payload } = req.body;
     console.log(`🔔 [Razorpay Webhook Event Received]: ${event}`);
 
-    if (event === 'payment.captured' && payload?.payment?.entity) {
-      const paymentEntity = payload.payment.entity;
-      const orderId = paymentEntity.order_id;
-      const paymentId = paymentEntity.id;
+    if ((event === 'payment.captured' || event === 'order.paid') && (payload?.payment?.entity || payload?.order?.entity)) {
+      const paymentEntity = payload.payment?.entity;
+      const orderEntity = payload.order?.entity;
+      const orderId = paymentEntity?.order_id || orderEntity?.id;
+      const paymentId = paymentEntity?.id;
 
       // Update matching booking status in database if available
       const existingBooking = await Booking.findOne({
