@@ -2,14 +2,62 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Booking } from '../models/Booking.js';
+import { ServiceConfig } from '../models/ServiceConfig.js';
 import { isMongoDBConnected } from './connect.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const dataFilePath = path.join(__dirname, '../../data/bookings.json');
+const serviceConfigsFilePath = path.join(__dirname, '../../data/services_whatsapp.json');
 
-// Ensure local backup data directory and file exist
+// Default initial service WhatsApp group links map
+const DEFAULT_SERVICE_WHATSAPP_LINKS = {
+  'international-law-business': {
+    serviceId: 'international-law-business',
+    serviceTitle: 'International Law & Global Business',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-Global-Business-Group',
+    whatsappChannelName: 'ILPU Global Business Channel'
+  },
+  'nri-property-protection': {
+    serviceId: 'nri-property-protection',
+    serviceTitle: 'NRI Property Protection & Legal Solutions',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-NRI-Property-Group',
+    whatsappChannelName: 'ILPU NRI Property Protection Group'
+  },
+  'contract-drafting': {
+    serviceId: 'contract-drafting',
+    serviceTitle: 'International Contract Drafting & Frameworks',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-Contract-Drafting-Group',
+    whatsappChannelName: 'ILPU International Contracts Group'
+  },
+  'investment-opportunities': {
+    serviceId: 'investment-opportunities',
+    serviceTitle: 'International Investment & Wealth Protection',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-Investment-Wealth-Group',
+    whatsappChannelName: 'ILPU Wealth & Investment Advisory Group'
+  },
+  'immigration-roadmap': {
+    serviceId: 'immigration-roadmap',
+    serviceTitle: 'Immigration & Emigration Roadmap Advisory',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-Immigration-Roadmap-Group',
+    whatsappChannelName: 'ILPU Global Mobility & Immigration Group'
+  },
+  'life-after-divorce': {
+    serviceId: 'life-after-divorce',
+    serviceTitle: 'Family Law & Life After Divorce Advisory',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-Family-Law-Divorce-Group',
+    whatsappChannelName: 'ILPU Family Law & Life Advisory Group'
+  },
+  'general-consultation': {
+    serviceId: 'general-consultation',
+    serviceTitle: '1-on-1 Legal Strategy Consultation',
+    whatsappGroupLink: 'https://chat.whatsapp.com/ILPU-General-Legal-Group',
+    whatsappChannelName: 'ILPU General Legal Strategy Group'
+  }
+};
+
+// Ensure local backup data directory and files exist
 const ensureFileExists = () => {
   const dir = path.dirname(dataFilePath);
   if (!fs.existsSync(dir)) {
@@ -17,6 +65,9 @@ const ensureFileExists = () => {
   }
   if (!fs.existsSync(dataFilePath)) {
     fs.writeFileSync(dataFilePath, JSON.stringify([], null, 2));
+  }
+  if (!fs.existsSync(serviceConfigsFilePath)) {
+    fs.writeFileSync(serviceConfigsFilePath, JSON.stringify(DEFAULT_SERVICE_WHATSAPP_LINKS, null, 2));
   }
 };
 
@@ -122,3 +173,124 @@ export const removeBookingFromStore = async (id) => {
     return deletedFromMongo;
   }
 };
+
+// ----------------------------------------------------
+// SERVICE-SPECIFIC WHATSAPP LINKS MANAGEMENT HELPERS
+// ----------------------------------------------------
+
+export const getAllServiceConfigsFromStore = async () => {
+  ensureFileExists();
+  let localMap = { ...DEFAULT_SERVICE_WHATSAPP_LINKS };
+
+  try {
+    if (fs.existsSync(serviceConfigsFilePath)) {
+      const raw = fs.readFileSync(serviceConfigsFilePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      localMap = { ...localMap, ...parsed };
+    }
+  } catch (e) {
+    console.error('[Local Service Config Read Error]:', e.message);
+  }
+
+  if (isMongoDBConnected()) {
+    try {
+      const mongoConfigs = await ServiceConfig.find().lean();
+      mongoConfigs.forEach((cfg) => {
+        localMap[cfg.serviceId] = {
+          serviceId: cfg.serviceId,
+          serviceTitle: cfg.serviceTitle || localMap[cfg.serviceId]?.serviceTitle || cfg.serviceId,
+          whatsappGroupLink: cfg.whatsappGroupLink,
+          whatsappChannelName: cfg.whatsappChannelName || ''
+        };
+      });
+    } catch (err) {
+      console.error('[MongoDB getAllServiceConfigs Error]:', err.message);
+    }
+  }
+
+  return Object.values(localMap);
+};
+
+export const getServiceWhatsAppLinkFromStore = async (serviceId) => {
+  const configs = await getAllServiceConfigsFromStore();
+  const matched = configs.find((c) => c.serviceId === serviceId);
+
+  if (matched && matched.whatsappGroupLink) {
+    return matched.whatsappGroupLink;
+  }
+
+  // Fallback to default or general consultation group
+  const defaultEntry = DEFAULT_SERVICE_WHATSAPP_LINKS[serviceId] || DEFAULT_SERVICE_WHATSAPP_LINKS['general-consultation'];
+  return defaultEntry.whatsappGroupLink;
+};
+
+export const updateServiceConfigInStore = async (serviceId, updateData) => {
+  ensureFileExists();
+  const serviceTitle = updateData.serviceTitle || DEFAULT_SERVICE_WHATSAPP_LINKS[serviceId]?.serviceTitle || serviceId;
+  const whatsappGroupLink = updateData.whatsappGroupLink || DEFAULT_SERVICE_WHATSAPP_LINKS[serviceId]?.whatsappGroupLink || 'https://chat.whatsapp.com/ILPULegalAdvisoryGroup';
+  const whatsappChannelName = updateData.whatsappChannelName || '';
+
+  const payload = {
+    serviceId,
+    serviceTitle,
+    whatsappGroupLink,
+    whatsappChannelName,
+    updatedAt: new Date()
+  };
+
+  // Save to local JSON backup
+  try {
+    let localMap = { ...DEFAULT_SERVICE_WHATSAPP_LINKS };
+    if (fs.existsSync(serviceConfigsFilePath)) {
+      const raw = fs.readFileSync(serviceConfigsFilePath, 'utf8');
+      localMap = { ...localMap, ...JSON.parse(raw) };
+    }
+    localMap[serviceId] = payload;
+    fs.writeFileSync(serviceConfigsFilePath, JSON.stringify(localMap, null, 2));
+  } catch (e) {
+    console.error('[Save Service Config Local File Error]:', e.message);
+  }
+
+  // Save to MongoDB Atlas
+  if (isMongoDBConnected()) {
+    try {
+      await ServiceConfig.findOneAndUpdate(
+        { serviceId },
+        payload,
+        { upsert: true, new: true }
+      );
+      console.log(`⚡ [MongoDB] Service WhatsApp Config updated for ${serviceId}`);
+    } catch (err) {
+      console.error('[MongoDB updateServiceConfig Error]:', err.message);
+    }
+  }
+
+  return payload;
+};
+
+export const deleteServiceConfigInStore = async (serviceId) => {
+  ensureFileExists();
+  // Reset to default
+  const defaultVal = DEFAULT_SERVICE_WHATSAPP_LINKS[serviceId];
+  if (isMongoDBConnected()) {
+    try {
+      await ServiceConfig.deleteOne({ serviceId });
+    } catch (e) {
+      console.error('[MongoDB deleteServiceConfig Error]:', e.message);
+    }
+  }
+
+  try {
+    if (fs.existsSync(serviceConfigsFilePath)) {
+      const raw = fs.readFileSync(serviceConfigsFilePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      delete parsed[serviceId];
+      fs.writeFileSync(serviceConfigsFilePath, JSON.stringify(parsed, null, 2));
+    }
+  } catch (e) {
+    console.error('[Local Service Config Delete Error]:', e.message);
+  }
+
+  return defaultVal || { serviceId, reset: true };
+};
+

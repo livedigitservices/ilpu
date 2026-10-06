@@ -2,8 +2,15 @@ import express from 'express';
 import { createRazorpayOrder, verifyRazorpayPayment, handleRazorpayWebhook } from '../controllers/razorpayController.js';
 import { verifyDirectUpiPayment } from '../controllers/upiController.js';
 import { getBooking, listBookings, deleteBooking, createManualBooking } from '../controllers/bookingController.js';
+import { listServiceConfigs, getServiceConfig, updateServiceConfig, resetServiceConfig } from '../controllers/serviceConfigController.js';
 
 const router = express.Router();
+
+// 1. Service-Specific WhatsApp Group / Channel Links (Admin Management)
+router.get('/services/whatsapp-links', listServiceConfigs);
+router.get('/services/whatsapp-links/:serviceId', getServiceConfig);
+router.put('/services/whatsapp-links/:serviceId', updateServiceConfig);
+router.delete('/services/whatsapp-links/:serviceId', resetServiceConfig);
 
 // 2. Razorpay Payment Routes (India Resident UPI / Cards / Netbanking)
 router.post('/razorpay/create-order', createRazorpayOrder);

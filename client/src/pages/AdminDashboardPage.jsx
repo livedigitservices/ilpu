@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { listBookingsApi, deleteBookingApi, createManualBookingApi } from '../services/api';
+import {
+  listBookingsApi,
+  deleteBookingApi,
+  createManualBookingApi,
+  listServiceConfigsApi,
+  updateServiceConfigApi,
+  resetServiceConfigApi
+} from '../services/api';
 import {
   Scale,
   ShieldCheck,
@@ -23,7 +30,14 @@ import {
   Loader2,
   X,
   CreditCard,
-  UserCheck
+  UserCheck,
+  Users,
+  Link2,
+  Save,
+  RotateCcw,
+  Check,
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 
 const ADMIN_PASSCODE = import.meta.env.VITE_ADMIN_PASSCODE || 'ilpu2026';
@@ -35,6 +49,10 @@ export default function AdminDashboardPage() {
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
 
+  // Active Tab: 'bookings' or 'whatsapp'
+  const [activeTab, setActiveTab] = useState('bookings');
+
+  // Bookings State
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -42,8 +60,22 @@ export default function AdminDashboardPage() {
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [regionFilter, setRegionFilter] = useState('ALL'); // ALL, india, international
-  const [providerFilter, setProviderFilter] = useState('ALL'); // ALL, RAZORPAY_UPI, DIRECT_UPI, PAYPAL
+  const [providerFilter, setProviderFilter] = useState('ALL'); // ALL, RAZORPAY, DIRECT_UPI, MANUAL
   const [sortOrder, setSortOrder] = useState('NEWEST'); // NEWEST, OLDEST
+
+  // Service WhatsApp Configs State
+  const [serviceConfigs, setServiceConfigs] = useState([]);
+  const [loadingConfigs, setLoadingConfigs] = useState(false);
+  const [savingServiceId, setSavingServiceId] = useState(null);
+  const [configSaveNotice, setConfigSaveNotice] = useState(null);
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [newServiceConfigData, setNewServiceConfigData] = useState({
+    serviceId: '',
+    serviceTitle: '',
+    whatsappGroupLink: '',
+    whatsappChannelName: ''
+  });
+  const [creatingServiceConfig, setCreatingServiceConfig] = useState(false);
 
   // Modals & Drawers
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -64,6 +96,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchBookings();
+      fetchServiceConfigs();
     }
   }, [isAuthenticated]);
 
@@ -77,6 +110,18 @@ export default function AdminDashboardPage() {
       setError(err.message || 'Failed to load bookings database');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchServiceConfigs = async () => {
+    setLoadingConfigs(true);
+    try {
+      const configs = await listServiceConfigsApi();
+      setServiceConfigs(configs);
+    } catch (err) {
+      console.error("Error loading service WhatsApp configs:", err);
+    } finally {
+      setLoadingConfigs(false);
     }
   };
 
@@ -141,6 +186,76 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Service Config Handlers
+  const handleServiceConfigChange = (serviceId, field, value) => {
+    setServiceConfigs((prev) =>
+      prev.map((c) => (c.serviceId === serviceId ? { ...c, [field]: value } : c))
+    );
+  };
+
+  const handleSaveServiceConfig = async (serviceId) => {
+    const config = serviceConfigs.find((c) => c.serviceId === serviceId);
+    if (!config) return;
+
+    setSavingServiceId(serviceId);
+    setConfigSaveNotice(null);
+    try {
+      await updateServiceConfigApi(serviceId, {
+        whatsappGroupLink: config.whatsappGroupLink,
+        whatsappChannelName: config.whatsappChannelName,
+        serviceTitle: config.serviceTitle
+      });
+      setConfigSaveNotice(`Saved WhatsApp link for "${config.serviceTitle}"`);
+      setTimeout(() => setConfigSaveNotice(null), 4000);
+      fetchServiceConfigs();
+    } catch (err) {
+      alert(err.message || 'Error saving service configuration');
+    } finally {
+      setSavingServiceId(null);
+    }
+  };
+
+  const handleResetServiceConfig = async (serviceId) => {
+    if (!window.confirm('Reset/delete this service WhatsApp link configuration?')) return;
+    setSavingServiceId(serviceId);
+    try {
+      await resetServiceConfigApi(serviceId);
+      fetchServiceConfigs();
+      setConfigSaveNotice('Service configuration reset/deleted successfully.');
+      setTimeout(() => setConfigSaveNotice(null), 4000);
+    } catch (err) {
+      alert(err.message || 'Error resetting service config');
+    } finally {
+      setSavingServiceId(null);
+    }
+  };
+
+  const handleCreateServiceConfig = async (e) => {
+    e.preventDefault();
+    if (!newServiceConfigData.serviceId.trim() || !newServiceConfigData.whatsappGroupLink.trim()) {
+      alert('Service ID and WhatsApp Group Link are required.');
+      return;
+    }
+    setCreatingServiceConfig(true);
+    try {
+      const cleanSlug = newServiceConfigData.serviceId.trim().toLowerCase().replace(/\s+/g, '-');
+      await updateServiceConfigApi(cleanSlug, {
+        whatsappGroupLink: newServiceConfigData.whatsappGroupLink.trim(),
+        whatsappChannelName: newServiceConfigData.whatsappChannelName.trim(),
+        serviceTitle: newServiceConfigData.serviceTitle.trim() || cleanSlug
+      });
+      setShowAddServiceModal(false);
+      setNewServiceConfigData({ serviceId: '', serviceTitle: '', whatsappGroupLink: '', whatsappChannelName: '' });
+      setConfigSaveNotice(`Added new WhatsApp link configuration for "${newServiceConfigData.serviceTitle || cleanSlug}"`);
+      setTimeout(() => setConfigSaveNotice(null), 4000);
+      fetchServiceConfigs();
+    } catch (err) {
+      alert(err.message || 'Error adding service configuration');
+    } finally {
+      setCreatingServiceConfig(false);
+    }
+  };
+
   // Filter & Search Computation
   const filteredBookings = bookings
     .filter((b) => {
@@ -158,7 +273,7 @@ export default function AdminDashboardPage() {
     })
     .filter((b) => {
       if (providerFilter === 'ALL') return true;
-      const prov = b.paymentProvider || (b.paypalOrderId?.startsWith('PAYPAL') ? 'PAYPAL' : 'DIRECT_UPI');
+      const prov = b.paymentProvider || (b.paypalOrderId?.startsWith('PAYPAL') ? 'RAZORPAY' : 'DIRECT_UPI');
       return prov.toUpperCase().includes(providerFilter.toUpperCase());
     })
     .sort((a, b) => {
@@ -182,7 +297,7 @@ export default function AdminDashboardPage() {
       `"${b.region || ''}"`,
       `"${b.amount || ''}"`,
       `"${b.currency || ''}"`,
-      `"${b.paymentProvider || 'PAYPAL'}"`,
+      `"${b.paymentProvider || 'RAZORPAY'}"`,
       `"${b.transactionId || b.paypalOrderId || ''}"`,
       `"${b.status || 'PAID'}"`
     ]);
@@ -269,7 +384,7 @@ export default function AdminDashboardPage() {
               <span className="font-cinzel text-lg font-bold text-gold-gradient tracking-widest block leading-none">
                 ILPU ADMIN DASHBOARD
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">Live Booking & Revenue Control Center</span>
+              <span className="text-[10px] text-slate-400 font-mono">Live Booking & Service Control Center</span>
             </div>
           </div>
 
@@ -293,226 +408,402 @@ export default function AdminDashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
         
-        {/* Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-              <span>Total Bookings</span>
-              <Calendar className="w-4 h-4 text-[#F3D079]" />
-            </div>
-            <div className="font-cinzel text-3xl font-extrabold text-white">
-              {bookings.length}
-            </div>
-            <span className="text-[10px] text-emerald-400 block">100% DB Synced</span>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 pb-3">
+          <button
+            onClick={() => setActiveTab('bookings')}
+            className={`px-5 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              activeTab === 'bookings'
+                ? 'bg-gold-gradient text-slate-950 shadow-lg shadow-[#D4AF37]/20 border border-[#D4AF37]'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Client Bookings & Revenue ({bookings.length})</span>
+          </button>
 
-          <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-              <span>Revenue (INR)</span>
-              <span className="text-emerald-400 font-bold text-base">₹</span>
-            </div>
-            <div className="font-cinzel text-3xl font-extrabold text-emerald-400">
-              ₹{totalRevenueINR.toLocaleString('en-IN')}
-            </div>
-            <span className="text-[10px] text-slate-400 block">India Resident Payments</span>
-          </div>
-
-          <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-              <span>Revenue (USD)</span>
-              <DollarSign className="w-4 h-4 text-[#F3D079]" />
-            </div>
-            <div className="font-cinzel text-3xl font-extrabold text-[#F3D079]">
-              ${totalRevenueUSD.toLocaleString()} USD
-            </div>
-            <span className="text-[10px] text-slate-400 block">International PayPal Payments</span>
-          </div>
-
-          <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-            <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-              <span>Active Verified Gateways</span>
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="text-xs font-bold text-slate-200 space-y-0.5 pt-1">
-              <span className="block text-emerald-400">✓ UPI (GPay, PhonePe, Paytm)</span>
-              <span className="block text-emerald-400">✓ Razorpay Gateway</span>
-              <span className="block text-emerald-400">✓ PayPal REST API v2</span>
-            </div>
-          </div>
-
+          <button
+            onClick={() => setActiveTab('whatsapp')}
+            className={`px-5 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              activeTab === 'whatsapp'
+                ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 border border-emerald-400'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Manage Service WhatsApp Groups & Channels ({serviceConfigs.length})</span>
+          </button>
         </div>
 
-        {/* Filter & Action Toolbar */}
-        <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-4">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-            
-            {/* Search Input */}
-            <div className="relative w-full lg:w-96">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-              <input
-                type="text"
-                placeholder="Search Client Name, Email, Phone, Booking Ref..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white outline-none focus:border-[#D4AF37]"
-              />
-            </div>
+        {/* Global Save Notice Banner */}
+        {configSaveNotice && (
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{configSaveNotice}</span>
+          </div>
+        )}
 
-            {/* Filter Controls */}
-            <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        {/* TAB 1: CLIENT BOOKINGS & REVENUE */}
+        {activeTab === 'bookings' && (
+          <div className="space-y-8 animate-fadeIn">
+            {/* Metrics Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
-              <div className="flex items-center gap-1.5 bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 text-xs">
-                <Filter className="w-3.5 h-3.5 text-[#F3D079]" />
-                <span className="text-slate-400">Region:</span>
-                <select
-                  value={regionFilter}
-                  onChange={(e) => setRegionFilter(e.target.value)}
-                  className="bg-transparent text-white font-semibold outline-none cursor-pointer"
-                >
-                  <option value="ALL">All Regions</option>
-                  <option value="india">India Resident</option>
-                  <option value="international">International</option>
-                </select>
+              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                  <span>Total Bookings</span>
+                  <Calendar className="w-4 h-4 text-[#F3D079]" />
+                </div>
+                <div className="font-cinzel text-3xl font-extrabold text-white">
+                  {bookings.length}
+                </div>
+                <span className="text-[10px] text-emerald-400 block">100% MongoDB Atlas Synced</span>
               </div>
 
-              <div className="flex items-center gap-1.5 bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 text-xs">
-                <span className="text-slate-400">Provider:</span>
-                <select
-                  value={providerFilter}
-                  onChange={(e) => setProviderFilter(e.target.value)}
-                  className="bg-transparent text-white font-semibold outline-none cursor-pointer"
-                >
-                  <option value="ALL">All Gateways</option>
-                  <option value="RAZORPAY">Razorpay</option>
-                  <option value="DIRECT_UPI">UPI (GPay/PhonePe)</option>
-                  <option value="PAYPAL">PayPal</option>
-                  <option value="MANUAL">Manual</option>
-                </select>
+              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                  <span>Revenue (INR)</span>
+                  <span className="text-emerald-400 font-bold text-base">₹</span>
+                </div>
+                <div className="font-cinzel text-3xl font-extrabold text-emerald-400">
+                  ₹{totalRevenueINR.toLocaleString('en-IN')}
+                </div>
+                <span className="text-[10px] text-slate-400 block">India Resident Payments</span>
               </div>
 
-              <button
-                onClick={fetchBookings}
-                className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-                title="Refresh Records"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              </button>
+              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                  <span>Revenue (USD)</span>
+                  <DollarSign className="w-4 h-4 text-[#F3D079]" />
+                </div>
+                <div className="font-cinzel text-3xl font-extrabold text-[#F3D079]">
+                  ${totalRevenueUSD.toLocaleString()} USD
+                </div>
+                <span className="text-[10px] text-slate-400 block">International Multi-Currency</span>
+              </div>
 
-              <button
-                onClick={exportToCSV}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-600/30 transition-all"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Export CSV</span>
-              </button>
+              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                  <span>Active Verified Gateways</span>
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-xs font-bold text-slate-200 space-y-0.5 pt-1">
+                  <span className="block text-emerald-400">✓ UPI (GPay, PhonePe, Paytm)</span>
+                  <span className="block text-emerald-400">✓ Razorpay Gateway (INR/USD)</span>
+                  <span className="block text-emerald-400">✓ Service-Specific WhatsApp Links</span>
+                </div>
+              </div>
 
             </div>
+
+            {/* Filter & Action Toolbar */}
+            <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-4">
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+                
+                {/* Search Input */}
+                <div className="relative w-full lg:w-96">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                  <input
+                    type="text"
+                    placeholder="Search by Client Name, Email, Phone, Ref ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 outline-none focus:border-[#D4AF37]"
+                  />
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                  
+                  <select
+                    value={regionFilter}
+                    onChange={(e) => setRegionFilter(e.target.value)}
+                    className="bg-slate-900 border border-slate-800 text-slate-300 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#D4AF37]"
+                  >
+                    <option value="ALL">All Regions</option>
+                    <option value="india">🇮🇳 India</option>
+                    <option value="international">🌐 International</option>
+                  </select>
+
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="bg-slate-900 border border-slate-800 text-slate-300 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#D4AF37]"
+                  >
+                    <option value="NEWEST">Date: Newest First</option>
+                    <option value="OLDEST">Date: Oldest First</option>
+                  </select>
+
+                  <button
+                    onClick={fetchBookings}
+                    className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
+                    title="Refresh List"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                  </button>
+
+                  <button
+                    onClick={exportToCSV}
+                    className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-600/30 transition-all text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export CSV</span>
+                  </button>
+
+                </div>
+
+              </div>
+            </div>
+
+            {/* Bookings Table */}
+            <div className="bg-navy-card rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+              {loading ? (
+                <div className="py-16 text-center space-y-3">
+                  <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
+                  <p className="text-xs text-slate-400 font-mono">Fetching MongoDB database records...</p>
+                </div>
+              ) : error ? (
+                <div className="py-12 text-center text-red-400 text-xs space-y-2">
+                  <AlertCircle className="w-6 h-6 mx-auto text-red-400" />
+                  <span>{error}</span>
+                </div>
+              ) : filteredBookings.length === 0 ? (
+                <div className="py-16 text-center space-y-3 text-slate-400">
+                  <FileSpreadsheet className="w-10 h-10 mx-auto text-slate-600" />
+                  <p className="text-sm font-semibold">No booking records found matching your filter.</p>
+                  <span className="text-xs text-slate-500 block">Try clearing your search term or region filters.</span>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="py-4 px-4">Ref ID & Date</th>
+                        <th className="py-4 px-4">Client Info</th>
+                        <th className="py-4 px-4">Service & Region</th>
+                        <th className="py-4 px-4">Amount</th>
+                        <th className="py-4 px-4">Provider</th>
+                        <th className="py-4 px-4 text-center">Status</th>
+                        <th className="py-4 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80">
+                      {filteredBookings.map((b) => {
+                        const clientName = b.clientDetails?.name || b.name || 'Client';
+                        const clientEmail = b.clientDetails?.email || b.email || 'N/A';
+                        const clientPhone = b.clientDetails?.phone || b.phone || 'N/A';
+                        const country = b.clientDetails?.country || b.country || 'N/A';
+
+                        return (
+                          <tr key={b.bookingId || b.id} className="hover:bg-slate-900/50 transition-colors">
+                            <td className="py-4 px-4">
+                              <span className="font-mono font-bold text-white block text-xs">
+                                {b.bookingId || b.id}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {b.createdAt ? new Date(b.createdAt).toLocaleString() : 'Recent'}
+                              </span>
+                            </td>
+
+                            <td className="py-4 px-4">
+                              <span className="font-semibold text-slate-200 block text-xs">{clientName}</span>
+                              <span className="text-[11px] text-slate-400 block">{clientEmail}</span>
+                              <span className="text-[11px] text-slate-400 block">{clientPhone}</span>
+                            </td>
+
+                            <td className="py-4 px-4 max-w-xs">
+                              <span className="font-medium text-slate-200 block truncate" title={b.serviceTitle}>
+                                {b.serviceTitle || 'Legal Strategy Consultation'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block mt-0.5">
+                                {b.region === 'india' ? '🇮🇳 India Resident' : '🌐 International Client'} • {country}
+                              </span>
+                            </td>
+
+                            <td className="py-4 px-4 font-mono font-bold text-[#F3D079]">
+                              {b.currency === 'INR' ? `₹${b.amount}` : `$${b.amount} USD`}
+                            </td>
+
+                            <td className="py-4 px-4">
+                              <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300 uppercase">
+                                {b.paymentProvider || 'RAZORPAY'}
+                              </span>
+                            </td>
+
+                            <td className="py-4 px-4 text-center">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>PAID</span>
+                              </span>
+                            </td>
+
+                            <td className="py-4 px-4 text-right space-x-2">
+                              <button
+                                onClick={() => setSelectedBooking(b)}
+                                className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
+                              >
+                                Details
+                              </button>
+                              <button
+                                onClick={() => handleDelete(b.bookingId || b.id)}
+                                disabled={deletingId === (b.bookingId || b.id)}
+                                className="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors"
+                              >
+                                {deletingId === (b.bookingId || b.id) ? '...' : <Trash2 className="w-3.5 h-3.5 inline" />}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: MANAGE SERVICE-SPECIFIC WHATSAPP GROUPS & CHANNELS */}
+        {activeTab === 'whatsapp' && (
+          <div className="space-y-6 animate-fadeIn">
+            
+            <div className="bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-6 h-6 text-emerald-400" />
+                  <h2 className="font-cinzel text-xl font-bold text-white">
+                    Service-Specific WhatsApp Groups & Channels
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowAddServiceModal(true)}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-400 transition-all shadow-md"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Service WhatsApp Link</span>
+                  </button>
+                  <button
+                    onClick={fetchServiceConfigs}
+                    className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+                    title="Reload Configs"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingConfigs ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 font-light leading-relaxed max-w-3xl">
+                Configure distinct WhatsApp Group / Channel join links for each individual practice area. When a client successfully pays for a specific service, the system verifies their payment status and automatically grants them access to **only** the WhatsApp group assigned to that service.
+              </p>
+            </div>
+
+            {loadingConfigs ? (
+              <div className="py-16 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
+                <p className="text-xs text-slate-400 font-mono">Loading service WhatsApp links database...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {serviceConfigs.map((cfg) => {
+                  const isSaving = savingServiceId === cfg.serviceId;
+
+                  return (
+                    <div
+                      key={cfg.serviceId}
+                      className="bg-navy-card rounded-2xl border border-slate-800 p-6 space-y-5 shadow-xl hover:border-[#D4AF37]/40 transition-colors"
+                    >
+                      {/* Service Header */}
+                      <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+                        <div>
+                          <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 border border-slate-800 text-[#F3D079] uppercase block w-fit mb-1">
+                            ID: {cfg.serviceId}
+                          </span>
+                          <h3 className="font-cinzel text-base font-bold text-white">
+                            {cfg.serviceTitle}
+                          </h3>
+                        </div>
+
+                        <a
+                          href={cfg.whatsappGroupLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold flex items-center gap-1 shrink-0"
+                          title="Test Link"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Test</span>
+                        </a>
+                      </div>
+
+                      {/* Input: Group Link */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>WhatsApp Group / Channel Invite Link *</span>
+                        </label>
+                        <input
+                          type="url"
+                          required
+                          placeholder="https://chat.whatsapp.com/..."
+                          value={cfg.whatsappGroupLink || ''}
+                          onChange={(e) => handleServiceConfigChange(cfg.serviceId, 'whatsappGroupLink', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 outline-none focus:border-emerald-400 font-mono"
+                        />
+                      </div>
+
+                      {/* Input: Channel Name */}
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-[#F3D079]" />
+                          <span>Channel / Group Display Title</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. ILPU Global Business Channel"
+                          value={cfg.whatsappChannelName || ''}
+                          onChange={(e) => handleServiceConfigChange(cfg.serviceId, 'whatsappChannelName', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 outline-none focus:border-[#D4AF37]"
+                        />
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => handleResetServiceConfig(cfg.serviceId)}
+                          disabled={isSaving}
+                          className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reset</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSaveServiceConfig(cfg.serviceId)}
+                          disabled={isSaving}
+                          className="px-5 py-2.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 border border-emerald-400"
+                        >
+                          {isSaving ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4" />
+                              <span>Save & Update Link</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
           </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="bg-navy-card rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
-          {loading ? (
-            <div className="py-20 text-center space-y-3">
-              <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
-              <p className="text-xs text-slate-400">Fetching live database records...</p>
-            </div>
-          ) : error ? (
-            <div className="p-8 text-center text-red-400 text-xs space-y-2">
-              <AlertCircle className="w-6 h-6 mx-auto" />
-              <p>{error}</p>
-            </div>
-          ) : filteredBookings.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 text-xs space-y-2">
-              <UserCheck className="w-8 h-8 text-slate-600 mx-auto" />
-              <p className="font-semibold text-slate-300">No booking records match your filter criteria.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-slate-950 text-slate-400 font-mono text-[11px] uppercase border-b border-slate-800">
-                  <tr>
-                    <th className="p-4">Ref ID / Date</th>
-                    <th className="p-4">Client Name & Contact</th>
-                    <th className="p-4">Service Selected</th>
-                    <th className="p-4">Payment & Provider</th>
-                    <th className="p-4">Amount</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredBookings.map((b) => {
-                    const client = b.clientDetails || {};
-                    const name = client.name || b.name || 'Client';
-                    const email = client.email || b.email || '';
-                    const phone = client.phone || b.phone || '';
-                    const provider = b.paymentProvider || (b.paypalOrderId?.startsWith('PAYPAL') ? 'PAYPAL' : 'DIRECT_UPI');
-
-                    return (
-                      <tr key={b.id || b.bookingId} className="hover:bg-slate-900/60 transition-colors">
-                        <td className="p-4 font-mono">
-                          <span className="font-bold text-white block">{b.bookingId || b.id}</span>
-                          <span className="text-[10px] text-slate-400">
-                            {b.createdAt ? new Date(b.createdAt).toLocaleString() : 'N/A'}
-                          </span>
-                        </td>
-
-                        <td className="p-4">
-                          <span className="font-bold text-slate-100 block">{name}</span>
-                          <span className="text-[11px] text-slate-400 block">{email}</span>
-                          <span className="text-[11px] text-slate-400 block">{phone}</span>
-                        </td>
-
-                        <td className="p-4 max-w-xs">
-                          <span className="font-semibold text-slate-200 block truncate">{b.serviceTitle}</span>
-                          <span className="text-[10px] text-slate-400 uppercase tracking-wider">{b.region === 'india' ? '🇮🇳 India Resident' : '🌐 International'}</span>
-                        </td>
-
-                        <td className="p-4 font-mono text-[11px]">
-                          <span className="px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px] bg-slate-900 border border-slate-700 text-[#F3D079] inline-block mb-1">
-                            {provider}
-                          </span>
-                          <span className="text-slate-400 block text-[10px] truncate max-w-[140px]" title={b.transactionId || b.paypalOrderId}>
-                            Ref: {b.transactionId || b.paypalOrderId}
-                          </span>
-                        </td>
-
-                        <td className="p-4 font-cinzel text-sm font-extrabold text-[#F3D079]">
-                          {b.currency === 'INR' ? `₹${b.amount} INR` : `$${b.amount} USD`}
-                        </td>
-
-                        <td className="p-4">
-                          <span className="px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/40 text-emerald-400">
-                            {b.status || 'PAID'}
-                          </span>
-                        </td>
-
-                        <td className="p-4 text-right space-x-2">
-                          <button
-                            onClick={() => setSelectedBooking(b)}
-                            className="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[#F3D079] hover:bg-slate-800 transition-colors"
-                          >
-                            Details
-                          </button>
-                          <button
-                            onClick={() => handleDelete(b.bookingId || b.id)}
-                            disabled={deletingId === (b.bookingId || b.id)}
-                            className="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors"
-                          >
-                            {deletingId === (b.bookingId || b.id) ? '...' : <Trash2 className="w-3.5 h-3.5 inline" />}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        )}
 
       </main>
 
@@ -603,10 +894,9 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Email Address *</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Email Address (Optional)</label>
                   <input
                     type="email"
-                    required
                     placeholder="name@example.com"
                     value={newBookingData.email}
                     onChange={(e) => setNewBookingData({ ...newBookingData, email: e.target.value })}
@@ -655,6 +945,87 @@ export default function AdminDashboardPage() {
                 className="w-full py-3.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs hover:brightness-110 border border-[#D4AF37] flex items-center justify-center gap-2"
               >
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Record Manual Booking</span>}
+              </button>
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* Add New Service WhatsApp Link Modal */}
+      {showAddServiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-[#0A1128] border border-emerald-500/40 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+            
+            <button
+              onClick={() => setShowAddServiceModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1">
+              <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider">
+                Practice Area Configuration
+              </span>
+              <h3 className="font-cinzel text-xl font-bold text-white">Add WhatsApp Link for Service</h3>
+            </div>
+
+            <form onSubmit={handleCreateServiceConfig} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Service ID / Slug *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. cyber-law-advisory or maritime-disputes"
+                  value={newServiceConfigData.serviceId}
+                  onChange={(e) => setNewServiceConfigData({ ...newServiceConfigData, serviceId: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-emerald-400 font-mono"
+                />
+                <span className="text-[10px] text-slate-500 block mt-1">Unique Identifier matching service ID (spaces automatically hypenated)</span>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Service Display Title *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Cyber Law & Digital Assets Advisory"
+                  value={newServiceConfigData.serviceTitle}
+                  onChange={(e) => setNewServiceConfigData({ ...newServiceConfigData, serviceTitle: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">WhatsApp Group / Channel Invite Link *</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://chat.whatsapp.com/..."
+                  value={newServiceConfigData.whatsappGroupLink}
+                  onChange={(e) => setNewServiceConfigData({ ...newServiceConfigData, whatsappGroupLink: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-emerald-400 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Group / Channel Display Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. ILPU Cyber Law Advisory Group"
+                  value={newServiceConfigData.whatsappChannelName}
+                  onChange={(e) => setNewServiceConfigData({ ...newServiceConfigData, whatsappChannelName: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={creatingServiceConfig}
+                className="w-full py-3.5 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 border border-emerald-400 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 mt-2"
+              >
+                {creatingServiceConfig ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Save & Create Service Link</span>}
               </button>
             </form>
 

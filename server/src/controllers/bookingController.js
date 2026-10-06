@@ -1,4 +1,4 @@
-import { findBookingById, getBookings, saveBooking, removeBookingFromStore } from '../db/store.js';
+import { findBookingById, getBookings, saveBooking, removeBookingFromStore, getServiceWhatsAppLinkFromStore } from '../db/store.js';
 import { sendAdminBookingNotification } from '../config/mailer.js';
 
 export const getBooking = async (req, res) => {
@@ -10,7 +10,25 @@ export const getBooking = async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
-    return res.status(200).json({ success: true, booking });
+    const isPaid = Boolean(
+      booking.status === 'PAID' ||
+      booking.status === 'COMPLETED' ||
+      booking.webhookVerified === true
+    );
+
+    let serviceWhatsAppGroupLink = null;
+    if (isPaid) {
+      const serviceId = booking.serviceId || 'general-consultation';
+      serviceWhatsAppGroupLink = await getServiceWhatsAppLinkFromStore(serviceId);
+    }
+
+    return res.status(200).json({
+      success: true,
+      booking: {
+        ...booking,
+        serviceWhatsAppGroupLink
+      }
+    });
   } catch (err) {
     console.error('[Get Booking Error]:', err);
     return res.status(500).json({ error: 'Failed to fetch booking details' });

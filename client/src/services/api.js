@@ -177,3 +177,57 @@ export const createManualBookingApi = async ({ serviceId, serviceTitle, region, 
 
   return data;
 };
+
+/**
+ * Helper to safely handle non-JSON responses (e.g. 404 HTML pages from un-deployed Render backend)
+ */
+const parseJsonResponse = async (response, fallbackErrorMessage) => {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('Backend server on Render is running an older deployment. Please push the latest backend code to GitHub/Render to activate the new WhatsApp API endpoints.');
+  }
+  const data = await response.json();
+  if (!response.ok || (data && data.success === false)) {
+    throw new Error(data?.error || fallbackErrorMessage);
+  }
+  return data;
+};
+
+/**
+ * 10. List all Service-Specific WhatsApp Group Configurations
+ */
+export const listServiceConfigsApi = async () => {
+  const response = await fetch(`${API_BASE_URL}/services/whatsapp-links`);
+  const data = await parseJsonResponse(response, 'Failed to fetch service WhatsApp configurations');
+  return data.configs || [];
+};
+
+/**
+ * 11. Update or Create Service-Specific WhatsApp Group Link
+ */
+export const updateServiceConfigApi = async (serviceId, { whatsappGroupLink, whatsappChannelName, serviceTitle }) => {
+  const response = await fetch(`${API_BASE_URL}/services/whatsapp-links/${serviceId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      whatsappGroupLink,
+      whatsappChannelName,
+      serviceTitle
+    }),
+  });
+
+  return await parseJsonResponse(response, 'Failed to update service WhatsApp configuration');
+};
+
+/**
+ * 12. Reset Service-Specific WhatsApp Group Link back to default
+ */
+export const resetServiceConfigApi = async (serviceId) => {
+  const response = await fetch(`${API_BASE_URL}/services/whatsapp-links/${serviceId}`, {
+    method: 'DELETE',
+  });
+
+  return await parseJsonResponse(response, 'Failed to reset service configuration');
+};

@@ -55,7 +55,9 @@ export default function BookingSuccessPage() {
     )
   );
 
-  const whatsappGroupLink = import.meta.env.VITE_WHATSAPP_GROUP_LINK || 'https://chat.whatsapp.com/ILPULegalAdvisoryGroup';
+  const serviceWhatsAppGroupLink = isVerifiedPaid
+    ? (booking?.serviceWhatsAppGroupLink || import.meta.env.VITE_WHATSAPP_GROUP_LINK || 'https://chat.whatsapp.com/ILPULegalAdvisoryGroup')
+    : null;
 
   const handleWhatsAppContact = () => {
     if (!booking) return;
@@ -185,7 +187,7 @@ export default function BookingSuccessPage() {
             </div>
           )}
 
-          {/* VERIFIED WHATSAPP GROUP ACCESS BOX */}
+          {/* VERIFIED SERVICE-SPECIFIC WHATSAPP GROUP ACCESS BOX */}
           {isVerifiedPaid ? (
             <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-950/80 via-slate-900 to-slate-950 border border-emerald-500/50 space-y-4 shadow-xl">
               <div className="flex items-start justify-between">
@@ -199,25 +201,25 @@ export default function BookingSuccessPage() {
                       <span>Verified Client Exclusive</span>
                     </div>
                     <h3 className="font-cinzel text-lg font-bold text-white">
-                      Join ILPU Legal Advisory WhatsApp Group
+                      Join {booking?.serviceTitle || 'Service'} WhatsApp Group/Channel
                     </h3>
                   </div>
                 </div>
               </div>
 
               <p className="text-xs text-slate-300 font-light leading-relaxed">
-                As a verified paid client, you are invited to join Dr. Karanam Rajesh Kumar's private legal advisory WhatsApp group for priority updates, court schedule notices, and direct legal strategy insights.
+                As a verified paid client for <strong className="text-white">{booking?.serviceTitle || 'your selected service'}</strong>, you are granted exclusive access to join the dedicated WhatsApp group/channel for this specific service.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <a
-                  href={whatsappGroupLink}
+                  href={serviceWhatsAppGroupLink}
                   target="_blank"
                   rel="noreferrer"
                   className="py-3.5 px-6 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs sm:text-sm hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
                   <Users className="w-4 h-4" />
-                  <span>Join Official WhatsApp Group</span>
+                  <span>Join {booking?.serviceTitle ? `"${booking.serviceTitle}"` : ''} WhatsApp Group</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
 
@@ -235,7 +237,7 @@ export default function BookingSuccessPage() {
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-3">
               <Lock className="w-4 h-4 shrink-0 text-amber-400" />
               <span>
-                Payment Verification Required: Access to the exclusive ILPU WhatsApp Group is restricted to clients with verified completed payments.
+                Payment Verification Required: Access to service-specific WhatsApp Groups is restricted to clients with verified completed payments.
               </span>
             </div>
           )}
