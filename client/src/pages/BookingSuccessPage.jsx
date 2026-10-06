@@ -14,7 +14,11 @@ import {
   Calendar,
   FileCheck,
   ShieldCheck,
-  Loader2
+  Loader2,
+  Users,
+  Lock,
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 
 export default function BookingSuccessPage() {
@@ -43,14 +47,24 @@ export default function BookingSuccessPage() {
     }
   }, [bookingId]);
 
+  const isVerifiedPaid = Boolean(
+    booking && (
+      booking.status === 'PAID' ||
+      booking.status === 'COMPLETED' ||
+      booking.webhookVerified === true
+    )
+  );
+
+  const whatsappGroupLink = import.meta.env.VITE_WHATSAPP_GROUP_LINK || 'https://chat.whatsapp.com/ILPULegalAdvisoryGroup';
+
   const handleWhatsAppContact = () => {
     if (!booking) return;
-    const clientName = booking.clientDetails?.name || 'Client';
+    const clientName = booking.clientDetails?.name || booking.name || 'Client';
     const serviceTitle = booking.serviceTitle || 'Legal Strategy Consultation';
     const amountStr = booking.currency === 'INR' ? `₹${booking.amount}` : `$${booking.amount} USD`;
 
     const text = encodeURIComponent(
-      `Hello Dr. Karanam Rajesh Kumar,\n\nI have completed my legal service booking!\n\nBooking Ref: ${booking.bookingId}\nClient Name: ${clientName}\nService: ${serviceTitle}\nAmount Paid: ${amountStr}\nPayment Status: COMPLETED\n\nI look forward to our consultation.`
+      `Hello Dr. Karanam Rajesh Kumar,\n\nI have completed my legal service booking!\n\nBooking Ref: ${booking.bookingId || booking.id}\nClient Name: ${clientName}\nService: ${serviceTitle}\nAmount Paid: ${amountStr}\nPayment Status: VERIFIED PAID\n\nI look forward to our consultation.`
     );
     window.open(`https://wa.me/919573446403?text=${text}`, '_blank');
   };
@@ -118,7 +132,7 @@ export default function BookingSuccessPage() {
                   Official Transaction Receipt
                 </span>
                 <span className="text-xs font-mono text-slate-400">
-                  Ref: <span className="text-white font-bold">{booking.bookingId}</span>
+                  Ref: <span className="text-white font-bold">{booking.bookingId || booking.id}</span>
                 </span>
               </div>
 
@@ -134,14 +148,14 @@ export default function BookingSuccessPage() {
                   <span className="font-cinzel text-lg font-bold text-[#F3D079]">
                     {booking.currency === 'INR' ? `₹${booking.amount} INR` : `$${booking.amount}.00 USD`}
                   </span>
-                  <span className="text-[10px] text-emerald-400 block font-semibold">Payment Status: COMPLETED</span>
+                  <span className="text-[10px] text-emerald-400 block font-semibold">Payment Status: VERIFIED PAID</span>
                 </div>
 
                 <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Client Details</span>
-                  <span className="font-semibold text-white block">{booking.clientDetails?.name}</span>
-                  <span className="text-slate-300 block">{booking.clientDetails?.email}</span>
-                  <span className="text-slate-400 block">{booking.clientDetails?.phone}</span>
+                  <span className="font-semibold text-white block">{booking.clientDetails?.name || booking.name}</span>
+                  <span className="text-slate-300 block">{booking.clientDetails?.email || booking.email || 'N/A'}</span>
+                  <span className="text-slate-400 block">{booking.clientDetails?.phone || booking.phone}</span>
                 </div>
 
                 <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -149,7 +163,7 @@ export default function BookingSuccessPage() {
                   <span className="font-semibold text-white block">
                     {booking.region === 'india' ? '🇮🇳 India Resident (₹499+18% GST)' : '🌐 International Client ($5 USD)'}
                   </span>
-                  <span className="text-slate-400 block">Country: {booking.clientDetails?.country}</span>
+                  <span className="text-slate-400 block">Country: {booking.clientDetails?.country || booking.country}</span>
                   <span className="text-slate-400 block">
                     {booking.createdAt ? new Date(booking.createdAt).toLocaleString() : new Date().toLocaleString()}
                   </span>
@@ -171,22 +185,69 @@ export default function BookingSuccessPage() {
             </div>
           )}
 
-          {/* Action CTAs */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center gap-4 border-t border-slate-800">
-            <button
-              onClick={handleWhatsAppContact}
-              className="w-full sm:w-auto flex-1 py-4 px-6 rounded-xl bg-emerald-600 text-white font-bold text-xs sm:text-sm hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 shadow-xl"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>Connect on WhatsApp with Booking Ref</span>
-            </button>
+          {/* VERIFIED WHATSAPP GROUP ACCESS BOX */}
+          {isVerifiedPaid ? (
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-950/80 via-slate-900 to-slate-950 border border-emerald-500/50 space-y-4 shadow-xl">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40 shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Verified Client Exclusive</span>
+                    </div>
+                    <h3 className="font-cinzel text-lg font-bold text-white">
+                      Join ILPU Legal Advisory WhatsApp Group
+                    </h3>
+                  </div>
+                </div>
+              </div>
 
+              <p className="text-xs text-slate-300 font-light leading-relaxed">
+                As a verified paid client, you are invited to join Dr. Karanam Rajesh Kumar's private legal advisory WhatsApp group for priority updates, court schedule notices, and direct legal strategy insights.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <a
+                  href={whatsappGroupLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="py-3.5 px-6 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-xs sm:text-sm hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Join Official WhatsApp Group</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleWhatsAppContact}
+                  className="py-3.5 px-5 rounded-xl bg-slate-900 border border-emerald-500/40 text-emerald-300 font-bold text-xs sm:text-sm hover:bg-slate-850 transition-all flex items-center justify-center gap-2"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>1-on-1 Direct WhatsApp Message</span>
+                </button>
+              </div>
+            </div>
+          ) : !loading && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-3">
+              <Lock className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>
+                Payment Verification Required: Access to the exclusive ILPU WhatsApp Group is restricted to clients with verified completed payments.
+              </span>
+            </div>
+          )}
+
+          {/* Return Home Action CTA */}
+          <div className="pt-2 flex justify-end border-t border-slate-800">
             <Link
               to="/"
-              className="w-full sm:w-auto py-4 px-6 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 font-semibold text-xs sm:text-sm hover:border-[#D4AF37]/40 hover:text-[#F3D079] transition-all flex items-center justify-center gap-2"
+              className="py-3 px-5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 font-semibold text-xs hover:border-[#D4AF37]/40 hover:text-[#F3D079] transition-all flex items-center gap-2"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Return to Home Page</span>
+              <span>Return to Practice Areas</span>
             </Link>
           </div>
 

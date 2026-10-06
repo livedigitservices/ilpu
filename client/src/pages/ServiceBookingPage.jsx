@@ -750,35 +750,11 @@ export default function ServiceBookingPage() {
                 </div>
               )}
 
-              {/* Fallback Direct Booking Trigger */}
-              <div className="pt-3 border-t border-slate-800 text-center space-y-2">
-                <p className="text-[11px] text-slate-400">
-                  Prefer direct priority verification without gateway popups?
-                </p>
-                <button
-                  type="button"
-                  onClick={handleDirectConfirmation}
-                  className="w-full py-3.5 rounded-xl bg-slate-900 text-slate-200 hover:text-white font-bold text-xs shadow-md hover:border-[#D4AF37] transition-all flex items-center justify-center gap-2 border border-slate-800"
-                >
-                  <CreditCard className="w-4 h-4 text-[#F3D079]" />
-                  <span>Confirm Booking & Notify Admin ({region === 'india' ? '₹589' : '$5 USD'})</span>
-                </button>
-              </div>
-
-              {/* Email dispatch notice */}
-              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-[11px] text-slate-400 flex items-center gap-2.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>
-                  After successful payment, full booking details and receipt will be dispatched automatically to the admin email ({import.meta.env.VITE_ADMIN_EMAIL || 'mtharun342@gmail.com'}).
-                </span>
-              </div>
-
             </div>
 
           </div>
 
         </div>
-
       </main>
 
     </div>
