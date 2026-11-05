@@ -53,12 +53,23 @@ const defaultService = {
 // Dynamically load Razorpay SDK script
 const loadRazorpayScript = () => {
   return new Promise((resolve) => {
-    if (window.Razorpay) {
+    if (typeof window !== 'undefined' && window.Razorpay) {
       resolve(true);
+      return;
+    }
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      existing.addEventListener('load', () => resolve(true));
+      existing.addEventListener('error', () => resolve(false));
       return;
     }
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
     script.onload = () => resolve(true);
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
@@ -137,8 +148,8 @@ export default function ServiceBookingPage() {
 
     try {
       const isLoaded = await loadRazorpayScript();
-      if (!isLoaded) {
-        throw new Error('Razorpay SDK failed to load. Please check your internet connection.');
+      if (!isLoaded || !window.Razorpay) {
+        throw new Error('Razorpay SDK failed to load. Please disable ad-blockers or refresh and try again.');
       }
 
       const orderData = await createRazorpayOrderApi({
@@ -150,53 +161,46 @@ export default function ServiceBookingPage() {
         clientDetails: formData,
       });
 
+      // Always prioritize the key returned by the backend that created this order
       const rawKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
       const razorpayKey = (rawKey && rawKey !== 'undefined' && rawKey !== 'null') ? rawKey.trim() : null;
 
       if (!razorpayKey) {
-        throw new Error('Razorpay Key ID is undefined. Please set VITE_RAZORPAY_KEY_ID in Vercel and RAZORPAY_KEY_ID in Render environment variables, or click "Confirm Booking & Notify Admin" below.');
+        throw new Error('Razorpay Key ID is undefined. Please verify gateway configuration.');
+      }
+
+      // Clean, sanitized prefill to prevent SDK validation issues
+      const prefill = {
+        name: formData.name.trim(),
+      };
+      if (formData.email && formData.email.trim()) {
+        prefill.email = formData.email.trim();
+      }
+      if (formData.phone && formData.phone.trim()) {
+        prefill.contact = formData.phone.trim().replace(/[\s()-]/g, '');
       }
 
       const options = {
         key: razorpayKey,
-        amount: orderData.amount,
+        amount: orderData.amount, // in currency subunits (paise / cents)
         currency: orderData.currency || payCurrency,
         name: 'ILPU Legal Expert',
         description: `Strategy Consultation - ${service.title}`,
+        image: '/assets/expert-meet.png',
         order_id: orderData.orderId,
-        prefill: {
-          name: formData.name,
-          email: formData.email,
-          contact: formData.phone,
+        prefill,
+        notes: {
+          serviceId: service.id,
+          serviceTitle: service.title,
+          clientName: formData.name.trim(),
+          clientEmail: (formData.email || '').trim(),
+          clientCountry: formData.country.trim(),
+          region
         },
         theme: {
           color: '#D4AF37',
+          backdrop_color: 'rgba(6, 11, 24, 0.85)'
         },
-        ...(payCurrency === 'INR' ? {
-          config: {
-            display: {
-              blocks: {
-                upi: {
-                  name: 'Pay via UPI (GPay, PhonePe, Paytm, QR)',
-                  instruments: [
-                    { method: 'upi' }
-                  ]
-                },
-                other: {
-                  name: 'Cards & NetBanking',
-                  instruments: [
-                    { method: 'card' },
-                    { method: 'netbanking' }
-                  ]
-                }
-              },
-              sequence: ['block.upi', 'block.other'],
-              preferences: {
-                show_default_blocks: true
-              }
-            }
-          }
-        } : {}),
         handler: async function (response) {
           try {
             const verification = await verifyRazorpayPaymentApi({
@@ -226,11 +230,28 @@ export default function ServiceBookingPage() {
           ondismiss: function () {
             setProcessing(false);
           },
+          escape: true,
+          backdropclose: false
         },
       };
 
       const paymentObject = new window.Razorpay(options);
-      paymentObject.open();
+
+      // Handle payment failure event directly from checkout interface
+      paymentObject.on('payment.failed', function (response) {
+        setProcessing(false);
+        console.error('⚠️ [Razorpay Payment Failed Event]:', response.error);
+        const errDesc = response.error?.description || response.error?.reason || 'Payment could not be completed';
+        setPaymentError(`Payment Unsuccessful: ${errDesc}. Please try again or use another payment method.`);
+      });
+
+      try {
+        paymentObject.open();
+      } catch (openErr) {
+        setProcessing(false);
+        console.error('⚠️ [Razorpay Checkout Open Error]:', openErr);
+        setPaymentError('Could not open Razorpay checkout window. Please check for popup blockers and try again.');
+      }
 
     } catch (err) {
       setProcessing(false);
