@@ -1,12 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  adminLoginApi,
+  verifyAdminSessionApi,
+  adminLogout,
   listBookingsApi,
   deleteBookingApi,
   createManualBookingApi,
   listServiceConfigsApi,
   updateServiceConfigApi,
-  resetServiceConfigApi
+  resetServiceConfigApi,
+  listAllPricingAdminApi,
+  createPricingPlanApi,
+  updatePricingPlanApi,
+  togglePlanStatusApi,
+  reorderPricingPlansApi,
+  deletePricingPlanApi,
+  getGstConfigAdminApi,
+  updateGstConfigAdminApi,
+  getAuditLogsApi
 } from '../services/api';
 import {
   Scale,
@@ -37,19 +49,27 @@ import {
   RotateCcw,
   Check,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  Tag,
+  Percent,
+  History,
+  Eye,
+  ArrowUp,
+  ArrowDown,
+  Edit2,
+  Calculator,
+  ShieldAlert
 } from 'lucide-react';
-
-const ADMIN_PASSCODE = import.meta.env.VITE_ADMIN_PASSCODE || 'ilpu2026';
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('ilpu_admin_authed') === 'true';
+    return Boolean(sessionStorage.getItem('ilpu_admin_token') && sessionStorage.getItem('ilpu_admin_authed') === 'true');
   });
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authenticating, setAuthenticating] = useState(false);
 
-  // Active Tab: 'bookings' or 'whatsapp'
+  // Active Tab: 'bookings' | 'pricing' | 'gst' | 'whatsapp' | 'audit'
   const [activeTab, setActiveTab] = useState('bookings');
 
   // Bookings State
@@ -77,7 +97,54 @@ export default function AdminDashboardPage() {
   });
   const [creatingServiceConfig, setCreatingServiceConfig] = useState(false);
 
-  // Modals & Drawers
+  // Dynamic Pricing State
+  const [pricingPlans, setPricingPlans] = useState([]);
+  const [loadingPricing, setLoadingPricing] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null); // null = not editing, object = plan being edited
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [previewPlanModal, setPreviewPlanModal] = useState(null);
+  const [previewRegion, setPreviewRegion] = useState('india');
+
+  const defaultPlanFormData = {
+    planId: '',
+    serviceId: '',
+    name: '',
+    subtitle: '',
+    description: '',
+    pricingType: 'one-time',
+    billingInterval: null,
+    priceIndia: 499,
+    originalPriceIndia: 1999,
+    priceInternational: 5,
+    originalPriceInternational: 25,
+    featuresText: '',
+    deliverablesText: '',
+    badge: 'Priority Advisory',
+    isActive: true,
+    applicableGstRate: ''
+  };
+  const [planFormData, setPlanFormData] = useState(defaultPlanFormData);
+
+  // Dynamic GST State
+  const [gstConfig, setGstConfig] = useState({
+    gstEnabled: true,
+    defaultRate: 18,
+    isInclusive: false,
+    hsnSacCode: '998211',
+    taxName: 'GST',
+    description: 'Goods and Services Tax on legal consultancy'
+  });
+  const [gstHistory, setGstHistory] = useState([]);
+  const [loadingGst, setLoadingGst] = useState(false);
+  const [savingGst, setSavingGst] = useState(false);
+  const [testBaseAmount, setTestBaseAmount] = useState(10000);
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  // Booking Modals & Drawers
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -87,18 +154,41 @@ export default function AdminDashboardPage() {
     phone: '',
     country: 'India',
     serviceTitle: '1-on-1 International Legal Strategy Consultation',
+    serviceId: 'general-consultation',
     region: 'india',
     amount: 589,
     notes: ''
   });
   const [creating, setCreating] = useState(false);
 
+  // Verify session on mount
+  useEffect(() => {
+    const token = sessionStorage.getItem('ilpu_admin_token');
+    if (token) {
+      verifyAdminSessionApi()
+        .then(() => {
+          setIsAuthenticated(true);
+        })
+        .catch(() => {
+          adminLogout();
+          setIsAuthenticated(false);
+        });
+    }
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
-      fetchBookings();
-      fetchServiceConfigs();
+      fetchAllAdminData();
     }
   }, [isAuthenticated]);
+
+  const fetchAllAdminData = () => {
+    fetchBookings();
+    fetchServiceConfigs();
+    fetchPricingPlans();
+    fetchGstConfig();
+    fetchAuditLogs();
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -119,25 +209,73 @@ export default function AdminDashboardPage() {
       const configs = await listServiceConfigsApi();
       setServiceConfigs(configs);
     } catch (err) {
-      console.error("Error loading service WhatsApp configs:", err);
+      console.error('Error loading service WhatsApp configs:', err);
     } finally {
       setLoadingConfigs(false);
     }
   };
 
-  const handleLogin = (e) => {
+  const fetchPricingPlans = async () => {
+    setLoadingPricing(true);
+    try {
+      const res = await listAllPricingAdminApi();
+      setPricingPlans(res.plans);
+    } catch (err) {
+      console.error('Error loading pricing plans:', err);
+    } finally {
+      setLoadingPricing(false);
+    }
+  };
+
+  const fetchGstConfig = async () => {
+    setLoadingGst(true);
+    try {
+      const res = await getGstConfigAdminApi();
+      if (res.config) {
+        setGstConfig(res.config);
+      }
+      setGstHistory(res.changeHistory || []);
+    } catch (err) {
+      console.error('Error loading GST settings:', err);
+    } finally {
+      setLoadingGst(false);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const logs = await getAuditLogsApi(100);
+      setAuditLogs(logs);
+    } catch (err) {
+      console.error('Error loading audit logs:', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const [isPendingDeploy, setIsPendingDeploy] = useState(false);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (passcode.trim() === ADMIN_PASSCODE) {
-      sessionStorage.setItem('ilpu_admin_authed', 'true');
+    setAuthenticating(true);
+    setAuthError('');
+    try {
+      const res = await adminLoginApi(passcode);
+      if (res.isPendingDeployment) {
+        setIsPendingDeploy(true);
+      }
       setIsAuthenticated(true);
-      setAuthError('');
-    } else {
-      setAuthError('Invalid Admin Passcode. Please verify and try again.');
+      setPasscode('');
+    } catch (err) {
+      setAuthError(err.message || 'Invalid Admin Passcode. Please try again.');
+    } finally {
+      setAuthenticating(false);
     }
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('ilpu_admin_authed');
+    adminLogout();
     setIsAuthenticated(false);
   };
 
@@ -151,7 +289,7 @@ export default function AdminDashboardPage() {
         setSelectedBooking(null);
       }
     } catch (err) {
-      alert(err.message || 'Error deleting booking');
+      alert('Delete failed: ' + err.message);
     } finally {
       setDeletingId(null);
     }
@@ -161,70 +299,63 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const res = await createManualBookingApi({
+      const res = await createManualBookingApi(newBookingData);
+      setBookings((prev) => [res.booking, ...prev]);
+      setShowCreateModal(false);
+      setNewBookingData({
+        name: '',
+        email: '',
+        phone: '',
+        country: 'India',
+        serviceTitle: '1-on-1 International Legal Strategy Consultation',
         serviceId: 'general-consultation',
-        serviceTitle: newBookingData.serviceTitle,
-        region: newBookingData.region,
-        amount: newBookingData.region === 'india' ? 589 : 5,
-        currency: newBookingData.region === 'india' ? 'INR' : 'USD',
-        clientDetails: {
-          name: newBookingData.name,
-          email: newBookingData.email,
-          phone: newBookingData.phone,
-          country: newBookingData.country,
-          notes: newBookingData.notes
-        }
+        region: 'india',
+        amount: 589,
+        notes: ''
       });
-      if (res.success) {
-        setShowCreateModal(false);
-        fetchBookings();
-      }
+      alert('Manual booking successfully recorded and verified!');
     } catch (err) {
-      alert(err.message || 'Error creating manual booking');
+      alert('Failed to create manual booking: ' + err.message);
     } finally {
       setCreating(false);
     }
   };
 
-  // Service Config Handlers
+  // WhatsApp Config Handlers
   const handleServiceConfigChange = (serviceId, field, value) => {
     setServiceConfigs((prev) =>
-      prev.map((c) => (c.serviceId === serviceId ? { ...c, [field]: value } : c))
+      prev.map((cfg) => (cfg.serviceId === serviceId ? { ...cfg, [field]: value } : cfg))
     );
   };
 
   const handleSaveServiceConfig = async (serviceId) => {
-    const config = serviceConfigs.find((c) => c.serviceId === serviceId);
-    if (!config) return;
+    const configToSave = serviceConfigs.find((c) => c.serviceId === serviceId);
+    if (!configToSave) return;
 
     setSavingServiceId(serviceId);
-    setConfigSaveNotice(null);
     try {
-      await updateServiceConfigApi(serviceId, {
-        whatsappGroupLink: config.whatsappGroupLink,
-        whatsappChannelName: config.whatsappChannelName,
-        serviceTitle: config.serviceTitle
-      });
-      setConfigSaveNotice(`Saved WhatsApp link for "${config.serviceTitle}"`);
+      await updateServiceConfigApi(serviceId, configToSave);
+      setConfigSaveNotice(`WhatsApp link saved and synced for "${configToSave.serviceTitle}"`);
       setTimeout(() => setConfigSaveNotice(null), 4000);
-      fetchServiceConfigs();
     } catch (err) {
-      alert(err.message || 'Error saving service configuration');
+      alert(`Save failed for ${serviceId}: ${err.message}`);
     } finally {
       setSavingServiceId(null);
     }
   };
 
   const handleResetServiceConfig = async (serviceId) => {
-    if (!window.confirm('Reset/delete this service WhatsApp link configuration?')) return;
+    if (!window.confirm(`Reset WhatsApp link for "${serviceId}" back to default?`)) return;
     setSavingServiceId(serviceId);
     try {
-      await resetServiceConfigApi(serviceId);
-      fetchServiceConfigs();
-      setConfigSaveNotice('Service configuration reset/deleted successfully.');
+      const res = await resetServiceConfigApi(serviceId);
+      setServiceConfigs((prev) =>
+        prev.map((c) => (c.serviceId === serviceId ? { ...c, whatsappGroupLink: res.whatsappGroupLink } : c))
+      );
+      setConfigSaveNotice(`WhatsApp link reset to default for "${serviceId}"`);
       setTimeout(() => setConfigSaveNotice(null), 4000);
     } catch (err) {
-      alert(err.message || 'Error resetting service config');
+      alert(`Reset failed: ${err.message}`);
     } finally {
       setSavingServiceId(null);
     }
@@ -232,106 +363,257 @@ export default function AdminDashboardPage() {
 
   const handleCreateServiceConfig = async (e) => {
     e.preventDefault();
-    if (!newServiceConfigData.serviceId.trim() || !newServiceConfigData.whatsappGroupLink.trim()) {
-      alert('Service ID and WhatsApp Group Link are required.');
-      return;
-    }
     setCreatingServiceConfig(true);
     try {
-      const cleanSlug = newServiceConfigData.serviceId.trim().toLowerCase().replace(/\s+/g, '-');
-      await updateServiceConfigApi(cleanSlug, {
-        whatsappGroupLink: newServiceConfigData.whatsappGroupLink.trim(),
-        whatsappChannelName: newServiceConfigData.whatsappChannelName.trim(),
-        serviceTitle: newServiceConfigData.serviceTitle.trim() || cleanSlug
-      });
+      const sanitizedId = newServiceConfigData.serviceId.toLowerCase().trim().replace(/[^a-z0-9-_]/g, '-');
+      const payload = {
+        ...newServiceConfigData,
+        serviceId: sanitizedId
+      };
+      await updateServiceConfigApi(sanitizedId, payload);
+      await fetchServiceConfigs();
       setShowAddServiceModal(false);
-      setNewServiceConfigData({ serviceId: '', serviceTitle: '', whatsappGroupLink: '', whatsappChannelName: '' });
-      setConfigSaveNotice(`Added new WhatsApp link configuration for "${newServiceConfigData.serviceTitle || cleanSlug}"`);
+      setNewServiceConfigData({
+        serviceId: '',
+        serviceTitle: '',
+        whatsappGroupLink: '',
+        whatsappChannelName: ''
+      });
+      setConfigSaveNotice(`Successfully added practice area "${payload.serviceTitle}"`);
       setTimeout(() => setConfigSaveNotice(null), 4000);
-      fetchServiceConfigs();
     } catch (err) {
-      alert(err.message || 'Error adding service configuration');
+      alert(`Error creating service WhatsApp link: ${err.message}`);
     } finally {
       setCreatingServiceConfig(false);
     }
   };
 
-  // Filter & Search Computation
-  const filteredBookings = bookings
-    .filter((b) => {
-      const term = searchTerm.toLowerCase();
-      const nameMatch = (b.clientDetails?.name || b.name || '').toLowerCase().includes(term);
-      const emailMatch = (b.clientDetails?.email || b.email || '').toLowerCase().includes(term);
-      const phoneMatch = (b.clientDetails?.phone || b.phone || '').toLowerCase().includes(term);
-      const refMatch = (b.bookingId || b.id || '').toLowerCase().includes(term);
-      const txnMatch = (b.transactionId || b.paypalOrderId || '').toLowerCase().includes(term);
-      return nameMatch || emailMatch || phoneMatch || refMatch || txnMatch;
-    })
-    .filter((b) => {
-      if (regionFilter === 'ALL') return true;
-      return (b.region || 'india').toLowerCase() === regionFilter.toLowerCase();
-    })
-    .filter((b) => {
-      if (providerFilter === 'ALL') return true;
-      const prov = b.paymentProvider || (b.paypalOrderId?.startsWith('PAYPAL') ? 'RAZORPAY' : 'DIRECT_UPI');
-      return prov.toUpperCase().includes(providerFilter.toUpperCase());
-    })
-    .sort((a, b) => {
-      const dateA = new Date(a.createdAt || 0).getTime();
-      const dateB = new Date(b.createdAt || 0).getTime();
-      return sortOrder === 'NEWEST' ? dateB - dateA : dateA - dateB;
-    });
-
-  // Export CSV Helper
-  const exportToCSV = () => {
-    if (filteredBookings.length === 0) return;
-    const headers = ['Booking Ref', 'Date', 'Client Name', 'Email', 'Phone', 'Country', 'Service Title', 'Region', 'Amount', 'Currency', 'Provider', 'Transaction ID', 'Status'];
-    const rows = filteredBookings.map((b) => [
-      `"${b.bookingId || b.id}"`,
-      `"${b.createdAt ? new Date(b.createdAt).toLocaleString() : ''}"`,
-      `"${b.clientDetails?.name || b.name || ''}"`,
-      `"${b.clientDetails?.email || b.email || ''}"`,
-      `"${b.clientDetails?.phone || b.phone || ''}"`,
-      `"${b.clientDetails?.country || b.country || ''}"`,
-      `"${b.serviceTitle || ''}"`,
-      `"${b.region || ''}"`,
-      `"${b.amount || ''}"`,
-      `"${b.currency || ''}"`,
-      `"${b.paymentProvider || 'RAZORPAY'}"`,
-      `"${b.transactionId || b.paypalOrderId || ''}"`,
-      `"${b.status || 'PAID'}"`
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `ILPU_Bookings_Report_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Pricing Plan CRUD Handlers
+  const handleOpenAddPlan = () => {
+    setEditingPlan(null);
+    setPlanFormData(defaultPlanFormData);
+    setShowPlanModal(true);
   };
 
-  // Metrics calculation
-  const totalRevenueINR = bookings.filter((b) => (b.currency || 'INR') === 'INR').reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
-  const totalRevenueUSD = bookings.filter((b) => b.currency === 'USD').reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  const handleOpenEditPlan = (plan) => {
+    setEditingPlan(plan);
+    setPlanFormData({
+      planId: plan.planId,
+      serviceId: plan.serviceId,
+      name: plan.name,
+      subtitle: plan.subtitle || '',
+      description: plan.description || '',
+      pricingType: plan.pricingType || 'one-time',
+      billingInterval: plan.billingInterval || null,
+      priceIndia: plan.priceIndia,
+      originalPriceIndia: plan.originalPriceIndia || '',
+      priceInternational: plan.priceInternational,
+      originalPriceInternational: plan.originalPriceInternational || '',
+      featuresText: Array.isArray(plan.features) ? plan.features.join('\n') : '',
+      deliverablesText: Array.isArray(plan.deliverables) ? plan.deliverables.join('\n') : '',
+      badge: plan.badge || '',
+      isActive: plan.isActive !== false,
+      applicableGstRate: plan.applicableGstRate !== null && plan.applicableGstRate !== undefined ? plan.applicableGstRate : ''
+    });
+    setShowPlanModal(true);
+  };
+
+  const handleSavePlan = async (e) => {
+    e.preventDefault();
+    setSavingPlan(true);
+
+    const features = planFormData.featuresText
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean);
+
+    const deliverables = planFormData.deliverablesText
+      .split('\n')
+      .map((d) => d.trim())
+      .filter(Boolean);
+
+    const payload = {
+      serviceId: planFormData.serviceId.toLowerCase().trim().replace(/[^a-z0-9-_]/g, '-'),
+      name: planFormData.name.trim(),
+      subtitle: planFormData.subtitle.trim(),
+      description: planFormData.description.trim(),
+      pricingType: planFormData.pricingType,
+      billingInterval: planFormData.pricingType === 'recurring' ? (planFormData.billingInterval || 'monthly') : null,
+      priceIndia: Number(planFormData.priceIndia),
+      originalPriceIndia: planFormData.originalPriceIndia ? Number(planFormData.originalPriceIndia) : null,
+      priceInternational: Number(planFormData.priceInternational),
+      originalPriceInternational: planFormData.originalPriceInternational ? Number(planFormData.originalPriceInternational) : null,
+      features,
+      deliverables,
+      badge: planFormData.badge.trim(),
+      isActive: Boolean(planFormData.isActive),
+      applicableGstRate: planFormData.applicableGstRate !== '' ? Number(planFormData.applicableGstRate) : null
+    };
+
+    try {
+      if (editingPlan) {
+        await updatePricingPlanApi(editingPlan.planId, payload);
+        setConfigSaveNotice(`Pricing plan "${payload.name}" updated successfully`);
+      } else {
+        await createPricingPlanApi(payload);
+        setConfigSaveNotice(`New pricing plan "${payload.name}" created successfully`);
+      }
+      setShowPlanModal(false);
+      await fetchPricingPlans();
+      await fetchAuditLogs();
+      setTimeout(() => setConfigSaveNotice(null), 4000);
+    } catch (err) {
+      alert(`Failed to save plan: ${err.message}`);
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  const handleTogglePlanStatus = async (planId, currentStatus) => {
+    try {
+      await togglePlanStatusApi(planId, !currentStatus);
+      setPricingPlans((prev) =>
+        prev.map((p) => (p.planId === planId ? { ...p, isActive: !currentStatus } : p))
+      );
+      setConfigSaveNotice(`Plan ${planId} is now ${!currentStatus ? 'Active' : 'Deactivated'}`);
+      await fetchAuditLogs();
+      setTimeout(() => setConfigSaveNotice(null), 3000);
+    } catch (err) {
+      alert(`Failed to toggle plan status: ${err.message}`);
+    }
+  };
+
+  const handleDeletePlan = async (planId, planName) => {
+    if (!window.confirm(`Permanently delete pricing plan "${planName}" (${planId})?`)) return;
+    try {
+      await deletePricingPlanApi(planId);
+      setPricingPlans((prev) => prev.filter((p) => p.planId !== planId));
+      setConfigSaveNotice(`Pricing plan "${planName}" deleted`);
+      await fetchAuditLogs();
+      setTimeout(() => setConfigSaveNotice(null), 3000);
+    } catch (err) {
+      alert(`Delete plan error: ${err.message}`);
+    }
+  };
+
+  const handleMovePlanOrder = async (index, direction) => {
+    const newPlans = [...pricingPlans];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= newPlans.length) return;
+
+    const temp = newPlans[index];
+    newPlans[index] = newPlans[targetIdx];
+    newPlans[targetIdx] = temp;
+
+    setPricingPlans(newPlans);
+
+    const orderedIds = newPlans.map((p) => p.planId);
+    try {
+      await reorderPricingPlansApi(orderedIds);
+      await fetchAuditLogs();
+    } catch (err) {
+      console.error('Reorder error:', err);
+      fetchPricingPlans();
+    }
+  };
+
+  // GST Settings Handlers
+  const handleSaveGstConfig = async (e) => {
+    e.preventDefault();
+    setSavingGst(true);
+    try {
+      await updateGstConfigAdminApi({
+        gstEnabled: Boolean(gstConfig.gstEnabled),
+        defaultRate: Number(gstConfig.defaultRate),
+        isInclusive: Boolean(gstConfig.isInclusive),
+        hsnSacCode: String(gstConfig.hsnSacCode).trim(),
+        taxName: String(gstConfig.taxName).trim(),
+        description: String(gstConfig.description).trim()
+      });
+      setConfigSaveNotice('GST configuration updated and applied sitewide!');
+      await fetchGstConfig();
+      await fetchPricingPlans(); // Recalculate plans
+      await fetchAuditLogs();
+      setTimeout(() => setConfigSaveNotice(null), 4000);
+    } catch (err) {
+      alert(`Failed to update GST config: ${err.message}`);
+    } finally {
+      setSavingGst(false);
+    }
+  };
+
+  // Live GST Test Calculations
+  const calcTestGst = () => {
+    const amount = Number(testBaseAmount) || 0;
+    const rate = gstConfig.gstEnabled ? Number(gstConfig.defaultRate) || 0 : 0;
+    if (!gstConfig.gstEnabled || rate === 0) {
+      return { base: amount, gst: 0, total: amount };
+    }
+    if (gstConfig.isInclusive) {
+      const base = Math.round((amount / (1 + rate / 100)) * 100) / 100;
+      const gst = Math.round((amount - base) * 100) / 100;
+      return { base, gst, total: amount };
+    } else {
+      const gst = Math.round(((amount * rate) / 100) * 100) / 100;
+      const total = Math.round((amount + gst) * 100) / 100;
+      return { base: amount, gst, total };
+    }
+  };
+
+  // Filter Bookings
+  const filteredBookings = bookings.filter((b) => {
+    const term = searchTerm.toLowerCase();
+    const clientName = (b.clientDetails?.name || b.name || '').toLowerCase();
+    const clientEmail = (b.clientDetails?.email || b.email || '').toLowerCase();
+    const clientPhone = (b.clientDetails?.phone || b.phone || '').toLowerCase();
+    const serviceTitle = (b.serviceTitle || '').toLowerCase();
+    const refId = (b.bookingId || b.id || '').toLowerCase();
+
+    const matchesSearch =
+      clientName.includes(term) ||
+      clientEmail.includes(term) ||
+      clientPhone.includes(term) ||
+      serviceTitle.includes(term) ||
+      refId.includes(term);
+
+    const matchesRegion = regionFilter === 'ALL' || b.region === regionFilter;
+    const matchesProvider = providerFilter === 'ALL' || b.paymentProvider === providerFilter;
+
+    return matchesSearch && matchesRegion && matchesProvider;
+  }).sort((a, b) => {
+    const timeA = new Date(a.createdAt || 0).getTime();
+    const timeB = new Date(b.createdAt || 0).getTime();
+    return sortOrder === 'NEWEST' ? timeB - timeA : timeA - timeB;
+  });
+
+  const totalRevenueINR = bookings
+    .filter((b) => b.currency === 'INR' && b.status === 'PAID')
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+
+  const totalRevenueUSD = bookings
+    .filter((b) => b.currency === 'USD' && b.status === 'PAID')
+    .reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
 
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#060B18] text-slate-100 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-navy-card rounded-3xl border border-[#D4AF37]/40 p-8 shadow-2xl space-y-6">
+        <div className="w-full max-w-md bg-navy-card rounded-2xl border border-slate-800 p-8 shadow-2xl space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-2xl bg-gold-gradient p-[1px] mx-auto">
-              <div className="w-full h-full bg-[#060B18] rounded-[15px] flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gold-gradient p-[1px] mx-auto">
+              <div className="w-full h-full bg-[#060B18] rounded-[11px] flex items-center justify-center">
                 <Lock className="w-6 h-6 text-[#F3D079]" />
               </div>
             </div>
-            <h2 className="font-cinzel text-2xl font-bold text-white">Chambers Admin Portal</h2>
-            <p className="text-xs text-slate-400">Restricted access for Dr. Karanam Rajesh Kumar's executive office.</p>
+            <h1 className="font-cinzel text-xl font-bold text-white tracking-wider">
+              ILPU EXECUTIVE PORTAL
+            </h1>
+            <p className="text-xs text-slate-400">
+              Authenticated Admin Access • Dynamic Pricing & System Security
+            </p>
           </div>
 
           {authError && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/40 text-red-400 text-xs flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{authError}</span>
             </div>
@@ -339,21 +621,25 @@ export default function AdminDashboardPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Enter Admin Passcode</label>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Administrator Passcode
+              </label>
               <input
                 type="password"
                 required
-                placeholder="••••••••"
+                autoFocus
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-sm text-white focus:border-[#D4AF37] outline-none"
+                placeholder="Enter secret administrator passcode"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3.5 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-[#D4AF37] font-mono tracking-widest"
               />
             </div>
             <button
               type="submit"
-              className="w-full py-3.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm hover:brightness-110 transition-all border border-[#D4AF37]"
+              disabled={authenticating}
+              className="w-full py-3.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm hover:brightness-110 transition-all border border-[#D4AF37] flex items-center justify-center gap-2 shadow-lg"
             >
-              Authenticate & Unlock Admin Dashboard
+              {authenticating ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Authenticate & Unlock Admin Portal</span>}
             </button>
           </form>
 
@@ -382,9 +668,9 @@ export default function AdminDashboardPage() {
             </div>
             <div>
               <span className="font-cinzel text-lg font-bold text-gold-gradient tracking-widest block leading-none">
-                ILPU ADMIN DASHBOARD
+                ILPU ADMIN PORTAL
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">Live Booking & Service Control Center</span>
+              <span className="text-[10px] text-slate-400 font-mono">Dynamic Pricing • GST • Security Control</span>
             </div>
           </div>
 
@@ -409,37 +695,95 @@ export default function AdminDashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
         
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 pb-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-b border-slate-800 pb-3">
           <button
             onClick={() => setActiveTab('bookings')}
-            className={`px-5 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
               activeTab === 'bookings'
                 ? 'bg-gold-gradient text-slate-950 shadow-lg shadow-[#D4AF37]/20 border border-[#D4AF37]'
                 : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>Client Bookings & Revenue ({bookings.length})</span>
+            <span>Bookings ({bookings.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('pricing')}
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              activeTab === 'pricing'
+                ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/20 border border-amber-300'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Tag className="w-4 h-4" />
+            <span>Dynamic Pricing ({pricingPlans.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('gst')}
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              activeTab === 'gst'
+                ? 'bg-blue-500 text-slate-950 shadow-lg shadow-blue-500/20 border border-blue-400'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Percent className="w-4 h-4" />
+            <span>GST Settings ({gstConfig.gstEnabled ? `${gstConfig.defaultRate}%` : 'Off'})</span>
           </button>
 
           <button
             onClick={() => setActiveTab('whatsapp')}
-            className={`px-5 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
               activeTab === 'whatsapp'
                 ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 border border-emerald-400'
                 : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Manage Service WhatsApp Groups & Channels ({serviceConfigs.length})</span>
+            <span>WhatsApp Groups ({serviceConfigs.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              activeTab === 'audit'
+                ? 'bg-purple-500 text-slate-950 shadow-lg shadow-purple-500/20 border border-purple-400'
+                : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Audit Logs ({auditLogs.length})</span>
           </button>
         </div>
 
         {/* Global Save Notice Banner */}
         {configSaveNotice && (
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn shadow-lg">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{configSaveNotice}</span>
+          </div>
+        )}
+
+        {/* Remote Render Deployment Pending Notice */}
+        {isPendingDeploy && (
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs flex items-start sm:items-center justify-between gap-3 animate-fadeIn shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <span className="font-bold block">Render Remote Backend Pending Deployment</span>
+                <span className="text-[11px] text-slate-300 block mt-0.5">
+                  Your live Render service (<code>ilpu.onrender.com</code>) is still running your previous deployment. Run <code>git push origin main</code> from your terminal to activate the new backend endpoints.
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsPendingDeploy(false)}
+              className="text-amber-400 hover:text-white p-1"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -448,106 +792,82 @@ export default function AdminDashboardPage() {
           <div className="space-y-8 animate-fadeIn">
             {/* Metrics Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-                  <span>Total Bookings</span>
-                  <Calendar className="w-4 h-4 text-[#F3D079]" />
-                </div>
-                <div className="font-cinzel text-3xl font-extrabold text-white">
-                  {bookings.length}
-                </div>
-                <span className="text-[10px] text-emerald-400 block">100% MongoDB Atlas Synced</span>
+              <div className="bg-navy-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-2">
+                <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">Total Bookings</span>
+                <span className="font-cinzel text-3xl font-bold text-white block">{bookings.length}</span>
+                <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Verified paid sessions
+                </span>
               </div>
 
-              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-                  <span>Revenue (INR)</span>
-                  <span className="text-emerald-400 font-bold text-base">₹</span>
-                </div>
-                <div className="font-cinzel text-3xl font-extrabold text-emerald-400">
-                  ₹{totalRevenueINR.toLocaleString('en-IN')}
-                </div>
-                <span className="text-[10px] text-slate-400 block">India Resident Payments</span>
+              <div className="bg-navy-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-2">
+                <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">India Domestic Revenue</span>
+                <span className="font-cinzel text-3xl font-bold text-[#F3D079] block">₹{totalRevenueINR.toLocaleString('en-IN')}</span>
+                <span className="text-[11px] text-slate-400">Total INR consultations booked</span>
               </div>
 
-              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-                  <span>Revenue (USD)</span>
-                  <DollarSign className="w-4 h-4 text-[#F3D079]" />
-                </div>
-                <div className="font-cinzel text-3xl font-extrabold text-[#F3D079]">
-                  ${totalRevenueUSD.toLocaleString()} USD
-                </div>
-                <span className="text-[10px] text-slate-400 block">International Multi-Currency</span>
+              <div className="bg-navy-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-2">
+                <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">International Revenue</span>
+                <span className="font-cinzel text-3xl font-bold text-blue-400 block">${totalRevenueUSD.toLocaleString()} USD</span>
+                <span className="text-[11px] text-slate-400">Global diaspora & foreign ventures</span>
               </div>
 
-              <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-2">
-                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
-                  <span>Active Verified Gateways</span>
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="text-xs font-bold text-slate-200 space-y-0.5 pt-1">
-                  <span className="block text-emerald-400">✓ UPI (GPay, PhonePe, Paytm)</span>
-                  <span className="block text-emerald-400">✓ Razorpay Gateway (INR/USD)</span>
-                  <span className="block text-emerald-400">✓ Service-Specific WhatsApp Links</span>
-                </div>
+              <div className="bg-navy-card p-5 rounded-2xl border border-slate-800 shadow-xl space-y-2">
+                <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">Active Services</span>
+                <span className="font-cinzel text-3xl font-bold text-emerald-400 block">{serviceConfigs.length}</span>
+                <span className="text-[11px] text-slate-400">All configured with private WhatsApp channels</span>
               </div>
-
             </div>
 
-            {/* Filter & Action Toolbar */}
-            <div className="bg-navy-card rounded-2xl border border-slate-800 p-5 shadow-xl space-y-4">
-              <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+            {/* Filter Toolbar */}
+            <div className="bg-navy-card p-4 rounded-2xl border border-slate-800 shadow-xl">
+              <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
                 
-                {/* Search Input */}
-                <div className="relative w-full lg:w-96">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <div className="relative w-full md:w-96">
+                  <Search className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Search by Client Name, Email, Phone, Ref ID..."
+                    placeholder="Search by client name, email, phone or booking ref..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 outline-none focus:border-[#D4AF37]"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-[#D4AF37]"
                   />
+                  {searchTerm && (
+                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3 text-slate-500 hover:text-white">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
-                {/* Filters */}
-                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
                   
                   <select
                     value={regionFilter}
                     onChange={(e) => setRegionFilter(e.target.value)}
-                    className="bg-slate-900 border border-slate-800 text-slate-300 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#D4AF37]"
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-[#D4AF37]"
                   >
                     <option value="ALL">All Regions</option>
-                    <option value="india">🇮🇳 India</option>
-                    <option value="international">🌐 International</option>
+                    <option value="india">India (Domestic)</option>
+                    <option value="international">International (USD)</option>
                   </select>
 
                   <select
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value)}
-                    className="bg-slate-900 border border-slate-800 text-slate-300 rounded-xl px-3 py-2.5 text-xs outline-none focus:border-[#D4AF37]"
+                    value={providerFilter}
+                    onChange={(e) => setProviderFilter(e.target.value)}
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-[#D4AF37]"
                   >
-                    <option value="NEWEST">Date: Newest First</option>
-                    <option value="OLDEST">Date: Oldest First</option>
+                    <option value="ALL">All Gateways</option>
+                    <option value="RAZORPAY">Razorpay</option>
+                    <option value="DIRECT_UPI">Direct UPI</option>
+                    <option value="MANUAL_ADMIN">Manual / Chamber</option>
                   </select>
 
                   <button
                     onClick={fetchBookings}
-                    className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-                    title="Refresh List"
+                    className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+                    title="Reload Database"
                   >
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  </button>
-
-                  <button
-                    onClick={exportToCSV}
-                    className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-600/30 transition-all text-xs font-bold flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export CSV</span>
                   </button>
 
                 </div>
@@ -560,7 +880,7 @@ export default function AdminDashboardPage() {
               {loading ? (
                 <div className="py-16 text-center space-y-3">
                   <Loader2 className="w-8 h-8 text-[#F3D079] animate-spin mx-auto" />
-                  <p className="text-xs text-slate-400 font-mono">Fetching MongoDB database records...</p>
+                  <p className="text-xs text-slate-400 font-mono">Fetching database records...</p>
                 </div>
               ) : error ? (
                 <div className="py-12 text-center text-red-400 text-xs space-y-2">
@@ -581,7 +901,7 @@ export default function AdminDashboardPage() {
                         <th className="py-4 px-4">Ref ID & Date</th>
                         <th className="py-4 px-4">Client Info</th>
                         <th className="py-4 px-4">Service & Region</th>
-                        <th className="py-4 px-4">Amount</th>
+                        <th className="py-4 px-4">Amount & Tax</th>
                         <th className="py-4 px-4">Provider</th>
                         <th className="py-4 px-4 text-center">Status</th>
                         <th className="py-4 px-4 text-right">Actions</th>
@@ -621,7 +941,12 @@ export default function AdminDashboardPage() {
                             </td>
 
                             <td className="py-4 px-4 font-mono font-bold text-[#F3D079]">
-                              {b.currency === 'INR' ? `₹${b.amount}` : `$${b.amount} USD`}
+                              <div>{b.currency === 'INR' ? `₹${b.amount}` : `$${b.amount} USD`}</div>
+                              {b.gstAmount ? (
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  Base: ₹{b.basePrice} + GST: ₹{b.gstAmount} ({b.gstRate}%)
+                                </div>
+                              ) : null}
                             </td>
 
                             <td className="py-4 px-4">
@@ -663,10 +988,411 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 2: MANAGE SERVICE-SPECIFIC WHATSAPP GROUPS & CHANNELS */}
+        {/* TAB 2: DYNAMIC PRICING PLANS */}
+        {activeTab === 'pricing' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Tag className="w-6 h-6 text-amber-400" />
+                  <h2 className="font-cinzel text-xl font-bold text-white">Dynamic Pricing Management</h2>
+                </div>
+                <p className="text-xs text-slate-300 font-light mt-1 max-w-2xl leading-relaxed">
+                  Manage all service pricing, discounts, one-time vs recurring structures, and deliverables. All updates are stored securely and immediately reflect sitewide.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleOpenAddPlan}
+                  className="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:bg-amber-300 transition-all shadow-md"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Pricing Plan</span>
+                </button>
+                <button
+                  onClick={fetchPricingPlans}
+                  className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+                  title="Reload Plans"
+                >
+                  <RefreshCw className={`w-4 h-4 ${loadingPricing ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {loadingPricing ? (
+              <div className="py-16 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
+                <p className="text-xs text-slate-400 font-mono">Loading pricing plans...</p>
+              </div>
+            ) : (
+              <div className="bg-navy-card rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="py-4 px-3 text-center">Order</th>
+                        <th className="py-4 px-4">Plan Name & Service</th>
+                        <th className="py-4 px-4">India Pricing (INR)</th>
+                        <th className="py-4 px-4">International (USD)</th>
+                        <th className="py-4 px-4">Type</th>
+                        <th className="py-4 px-4 text-center">Status</th>
+                        <th className="py-4 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80">
+                      {pricingPlans.map((p, idx) => (
+                        <tr key={p.planId} className="hover:bg-slate-900/50 transition-colors">
+                          <td className="py-4 px-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <button
+                                onClick={() => handleMovePlanOrder(idx, 'up')}
+                                disabled={idx === 0}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20"
+                                title="Move Up"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="text-[10px] font-mono text-slate-500">{p.sortOrder || idx + 1}</span>
+                              <button
+                                onClick={() => handleMovePlanOrder(idx, 'down')}
+                                disabled={idx === pricingPlans.length - 1}
+                                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20"
+                                title="Move Down"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+
+                          <td className="py-4 px-4 max-w-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-xs">{p.name}</span>
+                              {p.badge && (
+                                <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-[#D4AF37]/10 text-[#F3D079] border border-[#D4AF37]/30">
+                                  {p.badge}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-slate-400 block line-clamp-1 mt-0.5">
+                              {p.subtitle || p.description}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-500 block mt-1">
+                              Slug: {p.serviceId} • ID: {p.planId}
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-4 font-mono">
+                            <div className="font-bold text-[#F3D079] text-sm">₹{p.priceIndia}</div>
+                            {p.originalPriceIndia && (
+                              <div className="text-[10px] text-slate-500 line-through">₹{p.originalPriceIndia}</div>
+                            )}
+                            <div className="text-[10px] text-slate-400">
+                              {p.calculations?.india?.formattedTotal || `+ ${gstConfig.defaultRate}% GST`}
+                            </div>
+                          </td>
+
+                          <td className="py-4 px-4 font-mono">
+                            <div className="font-bold text-blue-400 text-sm">${p.priceInternational} USD</div>
+                            {p.originalPriceInternational && (
+                              <div className="text-[10px] text-slate-500 line-through">${p.originalPriceInternational}</div>
+                            )}
+                            <div className="text-[10px] text-slate-400">0% Export GST</div>
+                          </td>
+
+                          <td className="py-4 px-4">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-900 border border-slate-800 text-slate-300 uppercase">
+                              {p.pricingType || 'one-time'}
+                            </span>
+                          </td>
+
+                          <td className="py-4 px-4 text-center">
+                            <button
+                              onClick={() => handleTogglePlanStatus(p.planId, p.isActive !== false)}
+                              className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
+                                p.isActive !== false
+                                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
+                                  : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                              }`}
+                            >
+                              {p.isActive !== false ? 'Active' : 'Disabled'}
+                            </button>
+                          </td>
+
+                          <td className="py-4 px-4 text-right space-x-1.5">
+                            <button
+                              onClick={() => setPreviewPlanModal(p)}
+                              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
+                              title="Live Preview"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditPlan(p)}
+                              className="p-1.5 rounded-lg bg-slate-900 border border-slate-800 text-amber-400 hover:bg-amber-400/10 transition-colors"
+                              title="Edit Plan"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePlan(p.planId, p.name)}
+                              className="p-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors"
+                              title="Delete Plan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: DYNAMIC GST MANAGEMENT */}
+        {activeTab === 'gst' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl">
+              <div className="flex items-center gap-2">
+                <Percent className="w-6 h-6 text-blue-400" />
+                <h2 className="font-cinzel text-xl font-bold text-white">Dynamic GST & Tax Management</h2>
+              </div>
+              <p className="text-xs text-slate-300 font-light mt-1 max-w-2xl leading-relaxed">
+                Configure GST taxation rules dynamically. Switch between tax-inclusive and tax-exclusive pricing, set applicable HSN/SAC codes, and simulate calculations in real time.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Form Config */}
+              <div className="lg:col-span-2 bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl space-y-6">
+                <form onSubmit={handleSaveGstConfig} className="space-y-5 text-xs">
+                  
+                  {/* Enable GST Toggle */}
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900 border border-slate-800">
+                    <div>
+                      <span className="font-semibold text-white block">Enable GST Calculations</span>
+                      <span className="text-[11px] text-slate-400 block">
+                        If disabled, all consultations will be charged at base price without tax.
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={gstConfig.gstEnabled}
+                        onChange={(e) => setGstConfig({ ...gstConfig, gstEnabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">
+                        Default GST Percentage (%) *
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        required
+                        value={gstConfig.defaultRate}
+                        onChange={(e) => setGstConfig({ ...gstConfig, defaultRate: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-blue-400"
+                      />
+                      <span className="text-[10px] text-slate-500 block mt-1">Standard legal consulting rate is 18.00%</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">
+                        HSN / SAC Code *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={gstConfig.hsnSacCode || ''}
+                        onChange={(e) => setGstConfig({ ...gstConfig, hsnSacCode: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-blue-400"
+                      />
+                      <span className="text-[10px] text-slate-500 block mt-1">998211: Legal advisory and documentation</span>
+                    </div>
+                  </div>
+
+                  {/* Pricing Mode: Inclusive vs Exclusive */}
+                  <div className="space-y-2">
+                    <label className="block text-slate-300 font-semibold">
+                      Tax Pricing Computation Model *
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label
+                        onClick={() => setGstConfig({ ...gstConfig, isInclusive: false })}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                          !gstConfig.isInclusive
+                            ? 'bg-blue-600/10 border-blue-500 text-white'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="taxMode"
+                          checked={!gstConfig.isInclusive}
+                          onChange={() => {}}
+                          className="mt-1"
+                        />
+                        <div>
+                          <span className="font-bold text-xs block text-white">Tax-Exclusive (Default)</span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            Price is base amount. GST is added on top. (e.g. ₹499 + 18% GST = ₹588.82)
+                          </span>
+                        </div>
+                      </label>
+
+                      <label
+                        onClick={() => setGstConfig({ ...gstConfig, isInclusive: true })}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
+                          gstConfig.isInclusive
+                            ? 'bg-blue-600/10 border-blue-500 text-white'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="taxMode"
+                          checked={gstConfig.isInclusive}
+                          onChange={() => {}}
+                          className="mt-1"
+                        />
+                        <div>
+                          <span className="font-bold text-xs block text-white">Tax-Inclusive</span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            Displayed price already includes GST. (e.g. ₹499 total, base ₹422.88 + ₹76.12 GST)
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Tax Label / Name</label>
+                      <input
+                        type="text"
+                        value={gstConfig.taxName || ''}
+                        onChange={(e) => setGstConfig({ ...gstConfig, taxName: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-semibold mb-1">Official Description</label>
+                      <input
+                        type="text"
+                        value={gstConfig.description || ''}
+                        onChange={(e) => setGstConfig({ ...gstConfig, description: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={savingGst}
+                      className="px-6 py-3 rounded-xl bg-blue-500 text-slate-950 font-bold text-xs hover:bg-blue-400 transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                    >
+                      {savingGst ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      <span>Save & Apply Sitewide GST Settings</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Live Calculator Sandbox */}
+              <div className="bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Calculator className="w-5 h-5 text-blue-400" />
+                  <h3 className="font-cinzel text-base font-bold text-white">Interactive Tax Sandbox</h3>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-300">Test Price / Amount (₹ INR)</label>
+                  <input
+                    type="number"
+                    value={testBaseAmount}
+                    onChange={(e) => setTestBaseAmount(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white font-mono font-bold text-base outline-none focus:border-blue-400"
+                  />
+                  <div className="flex gap-2 pt-1">
+                    {[499, 1999, 4999, 10000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setTestBaseAmount(amt)}
+                        className="px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300 hover:text-white"
+                      >
+                        ₹{amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Calculation Output Card */}
+                {(() => {
+                  const result = calcTestGst();
+                  return (
+                    <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3 font-mono text-xs">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Base Price:</span>
+                        <span className="text-white font-bold">₹{result.base.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>GST ({gstConfig.gstEnabled ? `${gstConfig.defaultRate}%` : '0%'}):</span>
+                        <span className="text-blue-400 font-bold">₹{result.gst.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="border-t border-slate-800 pt-2 flex justify-between text-sm">
+                        <span className="text-white font-bold">Final Payable:</span>
+                        <span className="text-[#F3D079] font-bold text-base">₹{result.total.toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-sans italic pt-1">
+                        Mode: {gstConfig.isInclusive ? 'GST Inclusive in price' : 'GST Added to base price'} • HSN: {gstConfig.hsnSacCode}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* GST History Preview */}
+                {gstHistory.length > 0 && (
+                  <div className="space-y-2 border-t border-slate-800 pt-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Recent GST Changes ({gstHistory.length})
+                    </span>
+                    <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                      {gstHistory.slice(0, 5).map((h, i) => (
+                        <div key={i} className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px]">
+                          <div className="flex justify-between text-slate-300">
+                            <span className="font-semibold">{h.changeSummary || 'GST Updated'}</span>
+                            <span className="text-slate-500">{new Date(h.timestamp).toLocaleDateString()}</span>
+                          </div>
+                          <span className="text-slate-500 block mt-0.5">By {h.changedBy || 'Admin'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: SERVICE-SPECIFIC WHATSAPP GROUPS & CHANNELS */}
         {activeTab === 'whatsapp' && (
           <div className="space-y-6 animate-fadeIn">
-            
             <div className="bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -694,7 +1420,7 @@ export default function AdminDashboardPage() {
               </div>
 
               <p className="text-xs text-slate-300 font-light leading-relaxed max-w-3xl">
-                Configure distinct WhatsApp Group / Channel join links for each individual practice area. When a client successfully pays for a specific service, the system verifies their payment status and automatically grants them access to **only** the WhatsApp group assigned to that service.
+                Configure distinct WhatsApp Group / Channel join links for each individual practice area. When a client successfully completes payment for a specific service, the system verifies their payment and grants access <strong>strictly</strong> to that service's WhatsApp channel.
               </p>
             </div>
 
@@ -713,7 +1439,6 @@ export default function AdminDashboardPage() {
                       key={cfg.serviceId}
                       className="bg-navy-card rounded-2xl border border-slate-800 p-6 space-y-5 shadow-xl hover:border-[#D4AF37]/40 transition-colors"
                     >
-                      {/* Service Header */}
                       <div className="flex items-start justify-between border-b border-slate-800 pb-3">
                         <div>
                           <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 border border-slate-800 text-[#F3D079] uppercase block w-fit mb-1">
@@ -736,7 +1461,6 @@ export default function AdminDashboardPage() {
                         </a>
                       </div>
 
-                      {/* Input: Group Link */}
                       <div className="space-y-1.5">
                         <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                           <Link2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -752,7 +1476,6 @@ export default function AdminDashboardPage() {
                         />
                       </div>
 
-                      {/* Input: Channel Name */}
                       <div className="space-y-1.5">
                         <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-[#F3D079]" />
@@ -767,7 +1490,6 @@ export default function AdminDashboardPage() {
                         />
                       </div>
 
-                      {/* Actions */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-800">
                         <button
                           type="button"
@@ -795,17 +1517,414 @@ export default function AdminDashboardPage() {
                           )}
                         </button>
                       </div>
-
                     </div>
                   );
                 })}
               </div>
             )}
+          </div>
+        )}
 
+        {/* TAB 5: AUDIT LOGS */}
+        {activeTab === 'audit' && (
+          <div className="space-y-6 animate-fadeIn">
+            <div className="bg-navy-card rounded-2xl border border-slate-800 p-6 shadow-xl flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <History className="w-6 h-6 text-purple-400" />
+                  <h2 className="font-cinzel text-xl font-bold text-white">Pricing & GST Audit Trail</h2>
+                </div>
+                <p className="text-xs text-slate-300 font-light mt-1">
+                  Immutable chronological audit logs tracking every change made to pricing plans and GST tax configurations.
+                </p>
+              </div>
+              <button
+                onClick={fetchAuditLogs}
+                className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white"
+                title="Reload Audit Logs"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingLogs ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {loadingLogs ? (
+              <div className="py-16 text-center space-y-3">
+                <Loader2 className="w-8 h-8 text-purple-400 animate-spin mx-auto" />
+                <p className="text-xs text-slate-400 font-mono">Fetching audit trail logs...</p>
+              </div>
+            ) : auditLogs.length === 0 ? (
+              <div className="bg-navy-card rounded-2xl border border-slate-800 p-12 text-center text-slate-400 space-y-2">
+                <History className="w-10 h-10 mx-auto text-slate-600" />
+                <p className="text-sm font-semibold">No audit logs recorded yet.</p>
+                <span className="text-xs text-slate-500">Any modifications to pricing plans or GST will automatically generate entries here.</span>
+              </div>
+            ) : (
+              <div className="bg-navy-card rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900/90 border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="py-4 px-4">Timestamp</th>
+                        <th className="py-4 px-4">Action Type</th>
+                        <th className="py-4 px-4">Entity</th>
+                        <th className="py-4 px-4">Summary</th>
+                        <th className="py-4 px-4">Admin User</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80">
+                      {auditLogs.map((log) => (
+                        <tr key={log.auditId || log._id} className="hover:bg-slate-900/50 transition-colors">
+                          <td className="py-4 px-4 font-mono text-[11px] text-slate-300">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/10 border border-purple-500/30 text-purple-300">
+                              {log.changeType}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 font-semibold text-white">
+                            {log.entityName || log.entityId}
+                          </td>
+                          <td className="py-4 px-4 text-slate-300 max-w-md">
+                            {log.changeSummary}
+                          </td>
+                          <td className="py-4 px-4 font-mono text-slate-400">
+                            {log.changedBy || 'Admin'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
       </main>
+
+      {/* PLAN ADD / EDIT MODAL */}
+      {showPlanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-2xl bg-[#0A1128] border border-amber-400/40 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto">
+            
+            <button
+              onClick={() => setShowPlanModal(false)}
+              className="absolute top-5 right-5 p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1">
+              <span className="text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+                {editingPlan ? 'Edit Pricing Plan' : 'Create New Pricing Plan'}
+              </span>
+              <h3 className="font-cinzel text-xl font-bold text-white">
+                {editingPlan ? editingPlan.name : 'Configure Service Pricing'}
+              </h3>
+            </div>
+
+            <form onSubmit={handleSavePlan} className="space-y-4 text-xs">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Plan Display Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. International Commercial Arbitration Plan"
+                    value={planFormData.name}
+                    onChange={(e) => setPlanFormData({ ...planFormData, name: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Service Identifier / Slug *</label>
+                  <input
+                    type="text"
+                    required
+                    disabled={!!editingPlan}
+                    placeholder="e.g. international-arbitration"
+                    value={planFormData.serviceId}
+                    onChange={(e) => setPlanFormData({ ...planFormData, serviceId: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 font-mono disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Subtitle / Tagline</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Cross-Border Dispute Representation & Enforcement"
+                  value={planFormData.subtitle}
+                  onChange={(e) => setPlanFormData({ ...planFormData, subtitle: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Description</label>
+                <textarea
+                  rows="2"
+                  placeholder="Detailed breakdown of what this strategy consultation covers..."
+                  value={planFormData.description}
+                  onChange={(e) => setPlanFormData({ ...planFormData, description: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400"
+                ></textarea>
+              </div>
+
+              {/* Pricing Grid */}
+              <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                <span className="font-bold text-white block text-[11px] uppercase tracking-wider text-amber-400">
+                  Regional Pricing Tiers
+                </span>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">India Base Price (₹ INR) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={planFormData.priceIndia}
+                      onChange={(e) => setPlanFormData({ ...planFormData, priceIndia: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">India Original Price (Strikethrough)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g. 1999"
+                      value={planFormData.originalPriceIndia}
+                      onChange={(e) => setPlanFormData({ ...planFormData, originalPriceIndia: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">International Price ($ USD) *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={planFormData.priceInternational}
+                      onChange={(e) => setPlanFormData({ ...planFormData, priceInternational: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-semibold mb-1">Int'l Original Price ($ USD)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g. 25"
+                      value={planFormData.originalPriceInternational}
+                      onChange={(e) => setPlanFormData({ ...planFormData, originalPriceInternational: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono text-sm outline-none focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Pricing Model</label>
+                  <select
+                    value={planFormData.pricingType}
+                    onChange={(e) => setPlanFormData({ ...planFormData, pricingType: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400"
+                  >
+                    <option value="one-time">One-Time Fee</option>
+                    <option value="recurring">Recurring Retainer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Badge Tag</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Most Popular or Priority Advisory"
+                    value={planFormData.badge}
+                    onChange={(e) => setPlanFormData({ ...planFormData, badge: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Features (One bullet point per line)
+                </label>
+                <textarea
+                  rows="3"
+                  placeholder="30-Minute 1-on-1 Legal Strategy Session&#10;Complete Legal Risk Audit&#10;Jurisdictional Alignment Protocol"
+                  value={planFormData.featuresText}
+                  onChange={(e) => setPlanFormData({ ...planFormData, featuresText: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 font-mono text-[11px]"
+                ></textarea>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Deliverables (One item per line)
+                </label>
+                <textarea
+                  rows="2"
+                  placeholder="Custom Legal Opinion & Strategy Summary Document&#10;Embassy / Court Filing Checklist"
+                  value={planFormData.deliverablesText}
+                  onChange={(e) => setPlanFormData({ ...planFormData, deliverablesText: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-amber-400 font-mono text-[11px]"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="planIsActive"
+                  checked={planFormData.isActive}
+                  onChange={(e) => setPlanFormData({ ...planFormData, isActive: e.target.checked })}
+                  className="rounded border-slate-800 bg-slate-900 text-amber-400"
+                />
+                <label htmlFor="planIsActive" className="text-slate-300 font-semibold">
+                  Publish Plan Immediately (Active & Visible on Frontend)
+                </label>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={savingPlan}
+                  className="w-full py-3.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-400/20"
+                >
+                  {savingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  <span>{editingPlan ? 'Save & Update Pricing Plan' : 'Publish New Pricing Plan'}</span>
+                </button>
+              </div>
+
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* PLAN LIVE PREVIEW MODAL */}
+      {previewPlanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-[#0A1128] border border-[#D4AF37]/50 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+            
+            <button
+              onClick={() => setPreviewPlanModal(null)}
+              className="absolute top-5 right-5 p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] font-mono text-[#F3D079] uppercase tracking-wider block">Live Public Preview</span>
+                <h3 className="font-cinzel text-lg font-bold text-white">{previewPlanModal.name}</h3>
+              </div>
+              <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+                <button
+                  onClick={() => setPreviewRegion('india')}
+                  className={`px-3 py-1 rounded-md text-[10px] font-bold ${
+                    previewRegion === 'india' ? 'bg-[#D4AF37] text-slate-950' : 'text-slate-400'
+                  }`}
+                >
+                  🇮🇳 India
+                </button>
+                <button
+                  onClick={() => setPreviewRegion('international')}
+                  className={`px-3 py-1 rounded-md text-[10px] font-bold ${
+                    previewRegion === 'international' ? 'bg-[#D4AF37] text-slate-950' : 'text-slate-400'
+                  }`}
+                >
+                  🌐 Global
+                </button>
+              </div>
+            </div>
+
+            {/* Preview Card */}
+            <div className="p-6 rounded-2xl bg-gradient-to-b from-[#111A38] to-[#0A1128] border border-[#D4AF37]/30 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-[#D4AF37]/20 text-[#F3D079] border border-[#D4AF37]/40">
+                  {previewPlanModal.badge || 'Priority Advisory'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {previewPlanModal.pricingType === 'recurring' ? 'Retainer' : 'One-Time Session'}
+                </span>
+              </div>
+
+              <div>
+                <h4 className="font-cinzel text-lg font-bold text-white">{previewPlanModal.name}</h4>
+                <p className="text-xs text-slate-300 mt-1">{previewPlanModal.subtitle}</p>
+              </div>
+
+              {/* Price Breakdown */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="font-cinzel text-3xl font-bold text-[#F3D079]">
+                    {previewRegion === 'india' ? `₹${previewPlanModal.priceIndia}` : `$${previewPlanModal.priceInternational} USD`}
+                  </span>
+                  {previewRegion === 'india' && previewPlanModal.originalPriceIndia && (
+                    <span className="text-xs text-slate-500 line-through">₹{previewPlanModal.originalPriceIndia}</span>
+                  )}
+                  {previewRegion === 'international' && previewPlanModal.originalPriceInternational && (
+                    <span className="text-xs text-slate-500 line-through">${previewPlanModal.originalPriceInternational}</span>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-slate-400">
+                  {previewRegion === 'india' ? (
+                    gstConfig.isInclusive
+                      ? `Includes ${gstConfig.defaultRate}% GST (SAC: ${gstConfig.hsnSacCode})`
+                      : `+ ${gstConfig.defaultRate}% GST (Total ₹${Math.round(previewPlanModal.priceIndia * (1 + gstConfig.defaultRate / 100))})`
+                  ) : (
+                    'Export of Legal Services (0% Indian Tax)'
+                  )}
+                </div>
+              </div>
+
+              {/* Features List */}
+              {previewPlanModal.features && previewPlanModal.features.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Key Features</span>
+                  <ul className="space-y-1.5 text-xs text-slate-300">
+                    {previewPlanModal.features.map((feat, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <Check className="w-3.5 h-3.5 text-[#F3D079] shrink-0 mt-0.5" />
+                        <span>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setPreviewPlanModal(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold text-xs"
+              >
+                Close Preview
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Detail Drawer Modal */}
       {selectedBooking && (
@@ -839,7 +1958,26 @@ export default function AdminDashboardPage() {
                 <span className="text-slate-400 uppercase font-bold text-[10px] block">Service Requested</span>
                 <span className="text-sm font-semibold text-[#F3D079] block">{selectedBooking.serviceTitle}</span>
                 <span className="text-slate-300 block">Pricing Tier: {selectedBooking.pricingTier || selectedBooking.amountPaid}</span>
+                {selectedBooking.gstAmount ? (
+                  <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-800/80 mt-2">
+                    Base: ₹{selectedBooking.basePrice} • GST: ₹{selectedBooking.gstAmount} ({selectedBooking.gstRate}%) • Total: ₹{selectedBooking.amount}
+                  </div>
+                ) : null}
               </div>
+
+              {selectedBooking.whatsappGroupLink && (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1">
+                  <span className="text-emerald-400 uppercase font-bold text-[10px] block">Assigned WhatsApp Channel</span>
+                  <a
+                    href={selectedBooking.whatsappGroupLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-white underline break-all block font-mono"
+                  >
+                    {selectedBooking.whatsappGroupLink}
+                  </a>
+                </div>
+              )}
 
               {selectedBooking.clientDetails?.notes && (
                 <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
@@ -876,7 +2014,7 @@ export default function AdminDashboardPage() {
 
             <div className="space-y-1">
               <h3 className="font-cinzel text-xl font-bold text-white">Manual Client Booking</h3>
-              <p className="text-xs text-slate-400">Record a offline / direct chamber legal booking.</p>
+              <p className="text-xs text-slate-400">Record an offline / direct chamber legal booking.</p>
             </div>
 
             <form onSubmit={handleCreateManualBooking} className="space-y-3 text-xs">
@@ -894,7 +2032,7 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Email Address (Optional)</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Email Address</label>
                   <input
                     type="email"
                     placeholder="name@example.com"
@@ -917,14 +2055,36 @@ export default function AdminDashboardPage() {
               </div>
 
               <div>
+                <label className="block text-slate-300 font-semibold mb-1">Practice Area Service</label>
+                <select
+                  value={newBookingData.serviceId}
+                  onChange={(e) => {
+                    const sel = pricingPlans.find((p) => p.serviceId === e.target.value);
+                    setNewBookingData({
+                      ...newBookingData,
+                      serviceId: e.target.value,
+                      serviceTitle: sel ? sel.name : e.target.value
+                    });
+                  }}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-[#D4AF37]"
+                >
+                  {pricingPlans.map((p) => (
+                    <option key={p.planId} value={p.serviceId}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-slate-300 font-semibold mb-1">Region</label>
                 <select
                   value={newBookingData.region}
                   onChange={(e) => setNewBookingData({ ...newBookingData, region: e.target.value })}
                   className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-white outline-none focus:border-[#D4AF37]"
                 >
-                  <option value="india">India Resident (₹589 INR)</option>
-                  <option value="international">International ($5 USD)</option>
+                  <option value="india">India Resident (₹ INR)</option>
+                  <option value="international">International ($ USD)</option>
                 </select>
               </div>
 

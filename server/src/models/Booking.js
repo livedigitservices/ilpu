@@ -8,6 +8,10 @@ const bookingSchema = new mongoose.Schema(
       unique: true,
       index: true
     },
+    planId: {
+      type: String,
+      default: ''
+    },
     paypalOrderId: {
       type: String
     },
@@ -48,6 +52,37 @@ const bookingSchema = new mongoose.Schema(
     },
     pricingTier: {
       type: String
+    },
+    // Exact financial breakdown
+    basePrice: {
+      type: Number
+    },
+    gstRate: {
+      type: Number,
+      default: 0
+    },
+    gstAmount: {
+      type: Number,
+      default: 0
+    },
+    totalAmount: {
+      type: Number
+    },
+    isInclusive: {
+      type: Boolean,
+      default: false
+    },
+    hsnSacCode: {
+      type: String,
+      default: '998211'
+    },
+    taxName: {
+      type: String,
+      default: 'GST'
+    },
+    whatsappGroupLink: {
+      type: String,
+      default: ''
     },
     amount: {
       type: Number,

@@ -1,0 +1,210 @@
+[
+  {
+    "planId": "plan_international-law-business",
+    "serviceId": "international-law-business",
+    "name": "International Law & Global Business Advisory",
+    "subtitle": "Helping businesses understand the legal side of going global",
+    "description": "Empowering businesses to navigate complex international legal frameworks with confidence. From import-export compliance to cross-border acquisitions and dispute prevention.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 2999,
+    "priceInternational": 5,
+    "originalPriceInternational": 35,
+    "badge": "Global Markets",
+    "features": [
+      "Cross-Border Legal Guidance & Regulatory Frameworks",
+      "Import-Export, Foreign Trade & Maritime Compliance",
+      "Foreign Business Transactions & Cross-Border Mergers",
+      "International Commercial Dispute Resolution & Arbitration",
+      "Regulatory Coordination between India & International Markets"
+    ],
+    "deliverables": [
+      "Cross-border transaction risk audit",
+      "International trade agreement compliance check",
+      "Foreign direct investment (FDI) legal structuring",
+      "Customs and regulatory filings guidance"
+    ],
+    "isActive": true,
+    "sortOrder": 1,
+    "applicableGstRate": null
+  },
+  {
+    "planId": "plan_nri-property-protection",
+    "serviceId": "nri-property-protection",
+    "name": "NRI Property Protection & Legal Solutions",
+    "subtitle": "Guarding ancestral land, estates, and title deeds across India",
+    "description": "Comprehensive legal advisory for non-resident Indians facing land disputes, illegal encroachment, mutation obstacles, or title fraud across India.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 4999,
+    "priceInternational": 5,
+    "originalPriceInternational": 60,
+    "badge": "NRI Priority",
+    "features": [
+      "Ancestral Property & Land Dispute Resolution",
+      "Illegal Encroachment Defense & Eviction Proceedings",
+      "Title Verification, Mutation & Revenue Record Rectification",
+      "Power of Attorney (POA) Drafting, Validation & Registration",
+      "Direct Representation before District & High Courts across India"
+    ],
+    "deliverables": [
+      "Title and ownership risk verification audit",
+      "Encroachment eviction strategy and notice drafting",
+      "Revenue record mutation verification roadmap",
+      "Power of Attorney validation protocol"
+    ],
+    "isActive": true,
+    "sortOrder": 2,
+    "applicableGstRate": null
+  },
+  {
+    "planId": "plan_contract-drafting",
+    "serviceId": "contract-drafting",
+    "name": "International Contract Drafting & Frameworks",
+    "subtitle": "Ironclad cross-border agreements that protect your interests globally",
+    "description": "Precision multijurisdictional contract drafting, vendor SLAs, IP licensing, and non-disclosure agreements designed for cross-border enforceability.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 3499,
+    "priceInternational": 5,
+    "originalPriceInternational": 45,
+    "badge": "Commercial Law",
+    "features": [
+      "Cross-Border Commercial Contracts & Master Service Agreements (MSAs)",
+      "International Joint Venture, Shareholder & Partnership Deeds",
+      "Vendor Agreements, SLAs & Cross-Border Supply Contracts",
+      "IP Licensing, Technology Transfer & Non-Disclosure Agreements (NDAs)",
+      "Arbitration Clause Structuring (Singapore SIAC, London LCIA, India ICA)"
+    ],
+    "deliverables": [
+      "Tailored cross-border contract draft",
+      "Jurisdiction and governing law clause analysis",
+      "Dispute resolution and arbitration blueprint",
+      "Risk exposure and limitation of liability review"
+    ],
+    "isActive": true,
+    "sortOrder": 3,
+    "applicableGstRate": null
+  },
+  {
+    "planId": "plan_investment-opportunities",
+    "serviceId": "investment-opportunities",
+    "name": "International Investment & Wealth Protection",
+    "subtitle": "Strategic counsel for global ventures, FDI, and offshore holdings",
+    "description": "Navigating foreign direct investment (FDI), FEMA compliance, repatriation of funds, and legal asset protection for high-net-worth individuals and corporate investors.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 4999,
+    "priceInternational": 5,
+    "originalPriceInternational": 60,
+    "badge": "FDI & Wealth",
+    "features": [
+      "Foreign Direct Investment (FDI) & ODI Structuring under FEMA",
+      "Offshore Holding Structures & Global Asset Protection",
+      "Cross-Border Mergers, Acquisitions & Due Diligence Audits",
+      "Repatriation of Funds, NRE/NRO Account Legal Compliance",
+      "RBI, SEBI & International Financial Services Centre (IFSC) Advisory"
+    ],
+    "deliverables": [
+      "FEMA and FDI compliance verification report",
+      "Cross-border fund repatriation roadmap",
+      "Asset holding structure legal evaluation",
+      "Regulatory clearance checklist"
+    ],
+    "isActive": true,
+    "sortOrder": 4,
+    "applicableGstRate": null
+  },
+  {
+    "planId": "plan_immigration-roadmap",
+    "serviceId": "immigration-roadmap",
+    "name": "Immigration & Emigration Roadmap Advisory",
+    "subtitle": "Clear, compliant legal paths for global mobility, visas & residency",
+    "description": "Strategic legal counsel on global migration, investor visas, citizenship by investment, skilled professional pathways, and appeal against visa refusals.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 3999,
+    "priceInternational": 5,
+    "originalPriceInternational": 50,
+    "badge": "Global Mobility",
+    "features": [
+      "9-Step Personalised Global Mobility & Emigration Roadmap",
+      "Investor Visas, Golden Visas & Citizenship by Investment Pathways",
+      "Work Permits, Intra-Company Transfers & Skilled Migration",
+      "Visa Refusal Appeals, Administrative Reviews & Judicial Relief",
+      "Dual Citizenship, OCI Card & Passport Compliance Advisory"
+    ],
+    "deliverables": [
+      "Personalised 9-step emigration roadmap report",
+      "Visa eligibility and points audit",
+      "Refusal risk mitigation strategy",
+      "Document checklist for target consulate"
+    ],
+    "isActive": true,
+    "sortOrder": 5,
+    "applicableGstRate": null
+  },
+  {
+    "planId": "plan_life-after-divorce",
+    "serviceId": "life-after-divorce",
+    "name": "Family Law & Life After Divorce Advisory",
+    "subtitle": "Compassionate, confidential legal guidance for cross-border families",
+    "description": "Empathetic legal strategy for individuals navigating separation, cross-border child custody, asset division, alimony, and multijurisdictional matrimonial decrees.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 2999,
+    "priceInternational": 5,
+    "originalPriceInternational": 35,
+    "badge": "Family Law",
+    "features": [
+      "Cross-Border Child Custody & Hague Convention Advisory",
+      "Equitable Asset Division, Property Settlement & Alimony",
+      "Mutual Consent Divorce & Contested Matrimonial Proceedings",
+      "Domestic Violence Act & Dowry Prohibition Defense Counsel",
+      "Recognition of Foreign Divorce Decrees in Indian Courts"
+    ],
+    "deliverables": [
+      "Matrimonial dispute resolution strategy blueprint",
+      "Cross-border child custody rights assessment",
+      "Asset and alimony entitlement calculation guide",
+      "Foreign decree enforceability review"
+    ],
+    "isActive": true,
+    "sortOrder": 6,
+    "applicableGstRate": null
+  },
+  {
+    "planId": "plan_general-consultation",
+    "serviceId": "general-consultation",
+    "name": "1-on-1 Legal Strategy Consultation",
+    "subtitle": "Direct Confidential Legal Counsel with Dr. Karanam Rajesh Kumar",
+    "description": "Direct 30-minute legal strategy session covering NRI rights, corporate dispute risk audits, cross-border contracts, or international legal questions.",
+    "pricingType": "one-time",
+    "billingInterval": null,
+    "priceIndia": 499,
+    "originalPriceIndia": 1999,
+    "priceInternational": 5,
+    "originalPriceInternational": 25,
+    "badge": "Priority Advisory",
+    "features": [
+      "30-Minute 1-on-1 Legal Strategy Session with Dr. Karanam Rajesh Kumar",
+      "Complete Legal Risk Audit & Key Document Assessment",
+      "Jurisdictional Alignment under Indian & International Law",
+      "Actionable Legal Next Steps & Embassy / Court Protocol"
+    ],
+    "deliverables": [
+      "Custom Legal Opinion & Strategy Summary Document",
+      "Embassy / Court Filing Checklist & Template Guidance",
+      "Direct Priority Follow-Up Protocol"
+    ],
+    "isActive": true,
+    "sortOrder": 7,
+    "applicableGstRate": null
+  }
+]

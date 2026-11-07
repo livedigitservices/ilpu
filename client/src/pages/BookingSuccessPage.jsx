@@ -161,10 +161,15 @@ export default function BookingSuccessPage() {
                 </div>
 
                 <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Region & Date</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Region & Pricing</span>
                   <span className="font-semibold text-white block">
-                    {booking.region === 'india' ? '🇮🇳 India Resident (₹499+18% GST)' : '🌐 International Client ($5 USD)'}
+                    {booking.pricingTier || (booking.region === 'india' ? '🇮🇳 India Resident' : '🌐 International Client')}
                   </span>
+                  {booking.gstAmount ? (
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Base Fee: ₹{booking.basePrice} • GST ({booking.gstRate}%): ₹{booking.gstAmount} (SAC {booking.hsnSacCode || '998211'})
+                    </span>
+                  ) : null}
                   <span className="text-slate-400 block">Country: {booking.clientDetails?.country || booking.country}</span>
                   <span className="text-slate-400 block">
                     {booking.createdAt ? new Date(booking.createdAt).toLocaleString() : new Date().toLocaleString()}

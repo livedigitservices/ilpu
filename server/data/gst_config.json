@@ -1,0 +1,11 @@
+{
+  "configId": "global_gst_config",
+  "gstEnabled": true,
+  "defaultRate": 18,
+  "isInclusive": false,
+  "hsnSacCode": "998211",
+  "taxName": "GST",
+  "description": "Goods and Services Tax (GST) applicable on legal consultancy under SAC 998211",
+  "updatedAt": "2026-11-07T07:12:00.458Z",
+  "updatedBy": "System Default"
+}

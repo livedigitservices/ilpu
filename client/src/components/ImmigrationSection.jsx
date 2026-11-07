@@ -1,7 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plane, Compass, CheckCircle2, ShieldCheck, ArrowRight, Globe, FileText, Award, Tag } from 'lucide-react';
+import { getPublicPlanApi, getPublicGstConfigApi } from '../services/api';
 
 export default function ImmigrationSection({ onOpenConsultation }) {
+  const [pricing, setPricing] = useState({
+    indiaDisplay: '₹499 + 18% GST',
+    intlDisplay: '$5 USD',
+    ctaText: 'Get Your Personalised 9-Step Roadmap (₹499 / $5 USD)'
+  });
+
+  useEffect(() => {
+    Promise.all([
+      getPublicPlanApi('immigration-roadmap').catch(() => null),
+      getPublicGstConfigApi().catch(() => null)
+    ]).then(([plan, gst]) => {
+      if (plan) {
+        const indiaPrice = plan.priceIndia || 499;
+        const intlPrice = plan.priceInternational || 5;
+        const rate = gst?.gstEnabled ? (gst.defaultRate ?? 18) : 0;
+        setPricing({
+          indiaDisplay: rate > 0 ? `₹${indiaPrice} + ${rate}% GST` : `₹${indiaPrice}`,
+          intlDisplay: `$${intlPrice} USD`,
+          ctaText: `Get Your Personalised 9-Step Roadmap (₹${indiaPrice} / $${intlPrice} USD)`
+        });
+      }
+    });
+  }, []);
+
   const roadmapSteps = [
     { num: "1", title: "Goal", desc: "Define your personal, professional or family objective." },
     { num: "2", title: "Country", desc: "Select the optimal jurisdiction (USA, Canada, UK, UAE, EU, Australia)." },
@@ -53,9 +78,9 @@ export default function ImmigrationSection({ onOpenConsultation }) {
           <div className="inline-flex items-center gap-3 px-4 py-2 rounded-xl bg-slate-900 border border-[#D4AF37]/40 text-xs font-bold shadow-lg">
             <Tag className="w-4 h-4 text-[#F3D079]" />
             <span className="text-slate-200">Roadmap Strategy Fee:</span>
-            <span className="text-[#F3D079]">₹499 + 18% GST (India)</span>
+            <span className="text-[#F3D079]">{pricing.indiaDisplay} (India)</span>
             <span className="text-slate-500">|</span>
-            <span className="text-[#F3D079]">$5 USD (Other Countries)</span>
+            <span className="text-[#F3D079]">{pricing.intlDisplay} (Other Countries)</span>
           </div>
         </div>
 
@@ -70,61 +95,56 @@ export default function ImmigrationSection({ onOpenConsultation }) {
                 alt="Build Your Immigration Roadmap - Dr. Karanam Rajesh Kumar"
                 className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-700"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#060B18] via-transparent to-transparent opacity-60"></div>
-              
-              <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl bg-slate-950/90 backdrop-blur-md border border-[#D4AF37]/30 space-y-1">
-                <span className="text-[10px] font-bold text-gold-gradient uppercase tracking-widest block">
-                  INFORMED DECISIONS • STRONGER PATHWAYS • A GLOBAL TOMORROW
-                </span>
-                <p className="text-xs text-slate-200 font-medium">
-                  ILPU Global Mobility & Emigration Legal Processing Unit
-                </p>
+              <div className="absolute inset-0 bg-gradient-to-t from-[#060B18] via-transparent to-transparent opacity-80"></div>
+              <div className="absolute bottom-4 left-4 right-4 bg-slate-950/80 backdrop-blur-md p-3 rounded-xl border border-[#D4AF37]/30 text-xs text-slate-200 font-medium">
+                Comprehensive 9-Stage Jurisdictional Guidance • Supreme Court & Global Treaties
               </div>
             </div>
           </div>
 
-          {/* Right: 9-Step Interactive Journey Grid */}
+          {/* Right: 9 Steps Interactive Map */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-cinzel text-xl font-bold text-white flex items-center gap-2">
-                <Compass className="w-5 h-5 text-[#F3D079]" />
-                <span>The 9-Step Immigration Journey</span>
+            <div className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <Compass className="w-4 h-4" />
+                <span>The 9-Step Personalised Legal Blueprint</span>
+              </span>
+              <h3 className="font-cinzel text-2xl font-bold text-white">
+                From Initial Choice to Permanent Global Belonging
               </h3>
-              <span className="text-xs font-semibold text-cyan-400">Step-by-Step Legal Protocol</span>
             </div>
 
+            {/* Steps Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {roadmapSteps.map((s) => (
+              {roadmapSteps.map((step) => (
                 <div
-                  key={s.num}
-                  className="p-3.5 rounded-xl bg-navy-card border border-slate-800 hover:border-[#D4AF37]/40 transition-all space-y-1 group"
+                  key={step.num}
+                  className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-900 transition-all group"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="w-6 h-6 rounded-full bg-gold-gradient text-slate-950 font-bold text-xs flex items-center justify-center">
-                      {s.num}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-xs flex items-center justify-center font-mono border border-cyan-500/40">
+                      {step.num}
                     </span>
-                    <span className="text-[9px] font-mono text-slate-500">Phase 0{s.num}</span>
+                    <span className="font-cinzel font-bold text-xs text-white group-hover:text-cyan-400 transition-colors">
+                      {step.title}
+                    </span>
                   </div>
-                  <h4 className="font-cinzel text-xs font-bold text-white group-hover:text-[#F3D079] transition-colors">
-                    {s.title}
-                  </h4>
-                  <p className="text-[10px] text-slate-400 font-light leading-tight">
-                    {s.desc}
+                  <p className="text-[11px] text-slate-400 leading-snug">
+                    {step.desc}
                   </p>
                 </div>
               ))}
             </div>
 
-            {/* Key Planning Questions Checklist */}
-            <div className="bg-slate-900/90 p-5 rounded-xl border border-slate-800 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#F3D079] flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Key Planning Questions Resolved in Consultation</span>
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {keyQuestions.map((q, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-xs text-slate-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#F3D079]"></span>
+            {/* Questions Answered Pill */}
+            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#F3D079] block">
+                Critical Questions Answered in Your Roadmap
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
+                {keyQuestions.map((q, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                     <span>{q}</span>
                   </div>
                 ))}
@@ -137,7 +157,7 @@ export default function ImmigrationSection({ onOpenConsultation }) {
                 onClick={onOpenConsultation}
                 className="w-full sm:w-auto px-8 py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs sm:text-sm shadow-xl hover:brightness-110 flex items-center justify-center gap-2 border border-[#D4AF37]"
               >
-                <span>Get Your Personalised 9-Step Roadmap (₹499 / $5 USD)</span>
+                <span>{pricing.ctaText}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 

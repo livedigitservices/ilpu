@@ -4,7 +4,9 @@ import { servicesData, PRICING_INFO } from '../data/servicesData';
 import {
   createRazorpayOrderApi,
   verifyRazorpayPaymentApi,
-  verifyDirectUpiPaymentApi
+  verifyDirectUpiPaymentApi,
+  getPublicPlanApi,
+  getPublicGstConfigApi
 } from '../services/api';
 import {
   Scale,
@@ -81,7 +83,9 @@ export default function ServiceBookingPage() {
   const navigate = useNavigate();
   const formRef = useRef(null);
 
-  const service = servicesData.find((s) => s.id === serviceId) || defaultService;
+  const localService = servicesData.find((s) => s.id === serviceId) || defaultService;
+  const [dynamicPlan, setDynamicPlan] = useState(null);
+  const [loadingPlan, setLoadingPlan] = useState(true);
 
   const [region, setRegion] = useState('india'); // 'india' or 'international'
   const [formData, setFormData] = useState({
@@ -98,7 +102,22 @@ export default function ServiceBookingPage() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    fetchPlanData();
   }, [serviceId]);
+
+  const fetchPlanData = async () => {
+    setLoadingPlan(true);
+    try {
+      const plan = await getPublicPlanApi(serviceId || 'general-consultation');
+      if (plan) {
+        setDynamicPlan(plan);
+      }
+    } catch (err) {
+      console.warn('Using local service catalog fallback for pricing:', err.message);
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
 
   const handleRegionSelect = (selectedRegion) => {
     setRegion(selectedRegion);
@@ -129,11 +148,31 @@ export default function ServiceBookingPage() {
 
   const isFormFilled = formData.name.trim() && formData.phone.trim() && formData.country.trim();
 
-  const currentPricing = region === 'india' ? PRICING_INFO.india : PRICING_INFO.international;
-  const totalAmount = region === 'india' ? 589 : 5;
+  // Dynamic calculations from backend
+  const calculations = dynamicPlan?.calculations;
+  const currentCalc = calculations?.[region] || {
+    basePrice: region === 'india' ? 499 : 5,
+    gstRate: region === 'india' ? 18 : 0,
+    gstAmount: region === 'india' ? 89.82 : 0,
+    totalAmount: region === 'india' ? 588.82 : 5,
+    formattedBase: region === 'india' ? '₹499' : '$5',
+    formattedGst: region === 'india' ? '₹89.82' : '$0',
+    formattedTotal: region === 'india' ? '₹589 INR' : '$5.00 USD',
+    displayString: region === 'india' ? '₹499 + 18% GST (Total ₹589)' : '$5 USD'
+  };
+
+  const totalAmount = currentCalc.totalAmount;
   const currencyCode = region === 'india' ? 'INR' : 'USD';
 
-  // 1. Official Razorpay Payment Handler (UPI Apps, UPI QR Code, Debit/Credit Cards, International Cards)
+  // Resolved service metadata
+  const effectiveTitle = dynamicPlan?.name || localService.title;
+  const effectiveSubtitle = dynamicPlan?.subtitle || localService.subtitle;
+  const effectiveBadge = dynamicPlan?.badge || localService.badge;
+  const effectiveFeatures = (dynamicPlan?.features && dynamicPlan.features.length > 0) ? dynamicPlan.features : localService.features;
+  const effectiveDeliverables = (dynamicPlan?.deliverables && dynamicPlan.deliverables.length > 0) ? dynamicPlan.deliverables : localService.deliverables;
+  const effectiveDescription = dynamicPlan?.description || localService.description;
+
+  // 1. Official Razorpay Payment Handler
   const handleRazorpayPayment = async () => {
     if (!validateForm()) {
       setPaymentError('Please complete all required fields (Name, Phone, Country) in Step 2 above before proceeding to payment.');
@@ -143,25 +182,21 @@ export default function ServiceBookingPage() {
     setProcessing(true);
     setPaymentError(null);
 
-    const payAmount = totalAmount;
-    const payCurrency = currencyCode;
-
     try {
       const isLoaded = await loadRazorpayScript();
       if (!isLoaded || !window.Razorpay) {
         throw new Error('Razorpay SDK failed to load. Please disable ad-blockers or refresh and try again.');
       }
 
+      // Backend recalculates exact price and GST server-side
       const orderData = await createRazorpayOrderApi({
-        serviceId: service.id,
-        serviceTitle: service.title,
+        planId: dynamicPlan?.planId,
+        serviceId: serviceId || localService.id,
+        serviceTitle: effectiveTitle,
         region,
-        amount: payAmount,
-        currency: payCurrency,
         clientDetails: formData,
       });
 
-      // Always prioritize the key returned by the backend that created this order
       const rawKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
       const razorpayKey = (rawKey && rawKey !== 'undefined' && rawKey !== 'null') ? rawKey.trim() : null;
 
@@ -169,7 +204,6 @@ export default function ServiceBookingPage() {
         throw new Error('Razorpay Key ID is undefined. Please verify gateway configuration.');
       }
 
-      // Clean, sanitized prefill to prevent SDK validation issues
       const prefill = {
         name: formData.name.trim(),
       };
@@ -182,16 +216,17 @@ export default function ServiceBookingPage() {
 
       const options = {
         key: razorpayKey,
-        amount: orderData.amount, // in currency subunits (paise / cents)
-        currency: orderData.currency || payCurrency,
+        amount: orderData.amount, // in paise / cents verified by server
+        currency: orderData.currency || currencyCode,
         name: 'ILPU Legal Expert',
-        description: `Strategy Consultation - ${service.title}`,
+        description: `Strategy Consultation - ${effectiveTitle}`,
         image: '/assets/expert-meet.png',
         order_id: orderData.orderId,
         prefill,
         notes: {
-          serviceId: service.id,
-          serviceTitle: service.title,
+          planId: dynamicPlan?.planId || '',
+          serviceId: serviceId || localService.id,
+          serviceTitle: effectiveTitle,
           clientName: formData.name.trim(),
           clientEmail: (formData.email || '').trim(),
           clientCountry: formData.country.trim(),
@@ -208,11 +243,10 @@ export default function ServiceBookingPage() {
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               paymentMethod: 'RAZORPAY_OFFICIAL_GATEWAY',
-              serviceId: service.id,
-              serviceTitle: service.title,
+              planId: dynamicPlan?.planId,
+              serviceId: serviceId || localService.id,
+              serviceTitle: effectiveTitle,
               region,
-              amount: payAmount,
-              currency: payCurrency,
               clientDetails: formData,
             });
 
@@ -237,7 +271,6 @@ export default function ServiceBookingPage() {
 
       const paymentObject = new window.Razorpay(options);
 
-      // Handle payment failure event directly from checkout interface
       paymentObject.on('payment.failed', function (response) {
         setProcessing(false);
         console.error('⚠️ [Razorpay Payment Failed Event]:', response.error);
@@ -258,45 +291,12 @@ export default function ServiceBookingPage() {
       console.error('Razorpay Order Error:', err);
       const msg = err.message || err.toString() || '';
       if (msg.includes('401') || msg.includes('Unauthorized') || msg.includes('Key Secret mismatch') || msg.includes('authentication failed')) {
-        setPaymentError('Razorpay API Key Unauthorized (401). Please check that your RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET in server/.env are valid, or click "Confirm Booking & Notify Admin" below to complete your booking directly.');
+        setPaymentError('Razorpay API Key Unauthorized (401). Please check that your RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET in server/.env are valid.');
       } else if (msg.includes('502') || msg.includes('Failed to fetch') || msg.includes('Bad Gateway')) {
-        setPaymentError(`Backend server connection re-established. Please click "Pay ${payCurrency === 'INR' ? '₹589' : '$5 USD'} via Razorpay" again to launch payment.`);
+        setPaymentError(`Backend connection re-established. Please click "Pay ${currentCalc.formattedTotal} via Razorpay" again to launch checkout.`);
       } else {
         setPaymentError(msg || 'Error launching Razorpay payment interface.');
       }
-    }
-  };
-
-  // 2. Direct Backup Confirmation Handler
-  const handleDirectConfirmation = async () => {
-    if (!validateForm()) {
-      setPaymentError('Please complete all required fields (Name, Phone, Country) in Step 2 above before proceeding.');
-      return;
-    }
-
-    setProcessing(true);
-    setPaymentError(null);
-
-    try {
-      const data = await verifyDirectUpiPaymentApi({
-        utr: `DIRECT-BKG-${Date.now()}`,
-        upiApp: 'Direct Confirmation',
-        serviceId: service.id,
-        serviceTitle: service.title,
-        region,
-        amount: totalAmount,
-        currency: currencyCode,
-        clientDetails: formData,
-      });
-
-      if (data.success) {
-        navigate(`/booking-success/${data.bookingId}`);
-      } else {
-        throw new Error(data.error || 'Direct booking confirmation failed');
-      }
-    } catch (err) {
-      setProcessing(false);
-      setPaymentError(err.message || 'Error completing booking confirmation.');
     }
   };
 
@@ -363,39 +363,39 @@ export default function ServiceBookingPage() {
               {/* Badge & Price tag */}
               <div className="flex items-center justify-between">
                 <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-900 text-[#F3D079] border border-[#D4AF37]/30">
-                  {service.badge}
+                  {effectiveBadge}
                 </span>
                 <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
-                  {currentPricing.display}
+                  {currentCalc.formattedTotal}
                 </span>
               </div>
 
               {/* Service Title */}
               <div>
                 <h2 className="font-cinzel text-2xl font-bold text-white">
-                  {service.title}
+                  {effectiveTitle}
                 </h2>
                 <p className="font-playfair text-sm text-gold-gradient italic font-medium mt-1">
-                  "{service.subtitle}"
+                  "{effectiveSubtitle}"
                 </p>
               </div>
 
               {/* Image Banner */}
               <div className="rounded-xl overflow-hidden border border-slate-800 relative h-48 group">
                 <img
-                  src={service.image}
-                  alt={service.title}
+                  src={localService.image}
+                  alt={effectiveTitle}
                   className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#060B18] via-transparent to-transparent opacity-60"></div>
                 <div className="absolute bottom-3 left-3 right-3 text-[10px] text-slate-300 font-medium bg-slate-950/80 backdrop-blur-md p-2 rounded border border-[#D4AF37]/30 truncate">
-                  {service.tagline}
+                  {localService.tagline}
                 </div>
               </div>
 
               {/* Description */}
               <p className="text-xs text-slate-300 font-light leading-relaxed">
-                {service.description}
+                {effectiveDescription}
               </p>
 
               {/* Scope Features */}
@@ -405,7 +405,7 @@ export default function ServiceBookingPage() {
                   <span>Included Consultation Scope</span>
                 </h3>
                 <div className="space-y-2">
-                  {service.features.map((feat, i) => (
+                  {effectiveFeatures.map((feat, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
                       <CheckCircle className="w-3.5 h-3.5 text-[#F3D079] shrink-0 mt-0.5" />
                       <span>{feat}</span>
@@ -415,19 +415,21 @@ export default function ServiceBookingPage() {
               </div>
 
               {/* Deliverables */}
-              <div className="space-y-2 pt-3 border-t border-slate-800">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gold-gradient">
-                  Official Deliverables
-                </h3>
-                <div className="space-y-1.5">
-                  {service.deliverables.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-[11px] text-slate-300">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#F3D079]"></span>
-                      <span>{item}</span>
-                    </div>
-                  ))}
+              {effectiveDeliverables && effectiveDeliverables.length > 0 && (
+                <div className="space-y-2 pt-3 border-t border-slate-800">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gold-gradient">
+                    Official Deliverables
+                  </h3>
+                  <div className="space-y-1.5">
+                    {effectiveDeliverables.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-[11px] text-slate-300">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#F3D079]"></span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Trust Badge Footer */}
               <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-3 text-xs text-slate-400">
@@ -458,56 +460,81 @@ export default function ServiceBookingPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 
                 {/* India Pricing Option */}
-                <div
-                  onClick={() => handleRegionSelect('india')}
-                  className={`p-5 rounded-xl border cursor-pointer transition-all ${
-                    region === 'india'
-                      ? 'bg-gold-glass border-[#D4AF37] ring-1 ring-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
-                      : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span className="text-base">🇮🇳</span> India Resident
-                    </span>
-                    {region === 'india' && <CheckCircle2 className="w-4 h-4 text-[#F3D079]" />}
-                  </div>
-                  <div className="font-cinzel text-2xl font-extrabold text-[#F3D079]">
-                    ₹499 <span className="text-xs font-normal text-slate-300">+ 18% GST</span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Total Amount: <span className="text-slate-200 font-bold">₹589 INR</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
-                    Razorpay Official Gateway: UPI QR, GPay, PhonePe, Paytm & Cards.
-                  </p>
-                </div>
+                {(() => {
+                  const indiaCalc = calculations?.india || {
+                    basePrice: 499,
+                    gstRate: 18,
+                    gstAmount: 89.82,
+                    totalAmount: 588.82,
+                    formattedBase: '₹499',
+                    formattedTotal: '₹589 INR'
+                  };
+
+                  return (
+                    <div
+                      onClick={() => handleRegionSelect('india')}
+                      className={`p-5 rounded-xl border cursor-pointer transition-all ${
+                        region === 'india'
+                          ? 'bg-gold-glass border-[#D4AF37] ring-1 ring-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
+                          : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span className="text-base">🇮🇳</span> India Resident
+                        </span>
+                        {region === 'india' && <CheckCircle2 className="w-4 h-4 text-[#F3D079]" />}
+                      </div>
+                      <div className="font-cinzel text-2xl font-extrabold text-[#F3D079]">
+                        {indiaCalc.formattedBase}{' '}
+                        <span className="text-xs font-normal text-slate-300">
+                          {indiaCalc.gstRate > 0 ? `+ ${indiaCalc.gstRate}% GST` : '(0% Tax)'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Total Amount: <span className="text-slate-200 font-bold">{indiaCalc.formattedTotal}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
+                        Razorpay Official Gateway: UPI QR, GPay, PhonePe, Paytm & Cards.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* International Pricing Option */}
-                <div
-                  onClick={() => handleRegionSelect('international')}
-                  className={`p-5 rounded-xl border cursor-pointer transition-all ${
-                    region === 'international'
-                      ? 'bg-gold-glass border-[#D4AF37] ring-1 ring-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
-                      : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span className="text-base">🌐</span> International Client (NRIs)
-                    </span>
-                    {region === 'international' && <CheckCircle2 className="w-4 h-4 text-[#F3D079]" />}
-                  </div>
-                  <div className="font-cinzel text-2xl font-extrabold text-[#F3D079]">
-                    $5 USD
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Total Amount: <span className="text-slate-200 font-bold">$5.00 USD</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
-                    Razorpay Official Gateway: International Cards (Visa, Mastercard, AMEX, Discover).
-                  </p>
-                </div>
+                {(() => {
+                  const intlCalc = calculations?.international || {
+                    basePrice: 5,
+                    formattedTotal: '$5.00 USD'
+                  };
+
+                  return (
+                    <div
+                      onClick={() => handleRegionSelect('international')}
+                      className={`p-5 rounded-xl border cursor-pointer transition-all ${
+                        region === 'international'
+                          ? 'bg-gold-glass border-[#D4AF37] ring-1 ring-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
+                          : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span className="text-base">🌐</span> International Client (NRIs)
+                        </span>
+                        {region === 'international' && <CheckCircle2 className="w-4 h-4 text-[#F3D079]" />}
+                      </div>
+                      <div className="font-cinzel text-2xl font-extrabold text-[#F3D079]">
+                        ${intlCalc.basePrice} USD
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Total Amount: <span className="text-slate-200 font-bold">{intlCalc.formattedTotal}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-2 border-t border-slate-800/80 pt-2">
+                        Razorpay Gateway: International Cards (Visa, Mastercard, AMEX).
+                      </p>
+                    </div>
+                  );
+                })()}
 
               </div>
             </div>
@@ -649,8 +676,26 @@ export default function ServiceBookingPage() {
                 <div className="text-right">
                   <span className="text-xs text-slate-400 block">Total Payable</span>
                   <span className="font-cinzel text-2xl font-extrabold text-[#F3D079]">
-                    {region === 'india' ? '₹589 INR' : '$5.00 USD'}
+                    {currentCalc.formattedTotal}
                   </span>
+                </div>
+              </div>
+
+              {/* Price Breakdown Details */}
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+                <div className="flex justify-between text-slate-400">
+                  <span>Consultation Fee:</span>
+                  <span className="text-white font-mono">{currentCalc.formattedBase}</span>
+                </div>
+                {region === 'india' && currentCalc.gstRate > 0 && (
+                  <div className="flex justify-between text-slate-400">
+                    <span>GST ({currentCalc.gstRate}% - SAC {currentCalc.hsnSacCode || '998211'}):</span>
+                    <span className="text-blue-400 font-mono">{currentCalc.formattedGst}</span>
+                  </div>
+                )}
+                <div className="border-t border-slate-800 pt-2 flex justify-between text-sm">
+                  <span className="font-bold text-white">Total Amount:</span>
+                  <span className="font-bold text-[#F3D079] font-mono">{currentCalc.formattedTotal}</span>
                 </div>
               </div>
 
@@ -680,11 +725,8 @@ export default function ServiceBookingPage() {
                     Processing Payment & Dispatching Admin Notification...
                   </p>
                 </div>
-              ) : region === 'india' ? (
-                /* OFFICIAL RAZORPAY PAYMENT INTERFACE FOR INDIA */
+              ) : (
                 <div className="space-y-5 animate-fadeIn">
-                  
-                  {/* Razorpay Badges Header */}
                   <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-center">
                     
                     <div className="w-12 h-12 rounded-2xl bg-gold-gradient p-[1px] mx-auto">
@@ -695,24 +737,39 @@ export default function ServiceBookingPage() {
 
                     <div className="space-y-1">
                       <h4 className="font-cinzel text-base font-bold text-white">
-                        Razorpay Official Payment Interface
+                        {region === 'india' ? 'Razorpay Official Payment Interface' : 'Razorpay International Payment Gateway'}
                       </h4>
                       <p className="text-xs text-slate-300 font-light max-w-md mx-auto">
-                        Choose your preferred payment method inside Razorpay’s official modal: UPI QR Code, Google Pay, PhonePe, Paytm, BHIM, Debit/Credit Cards, or NetBanking.
+                        {region === 'india'
+                          ? 'Choose your preferred payment method inside Razorpay: UPI QR Code, Google Pay, PhonePe, Paytm, BHIM, Cards, or NetBanking.'
+                          : 'Pay using International Cards (Visa, Mastercard, AMEX) or Multi-Currency accounts.'}
                       </p>
                     </div>
 
                     {/* Supported Methods Visual Badges */}
                     <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
-                        <span>📲</span> UPI Apps (GPay, PhonePe, Paytm)
-                      </span>
-                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
-                        <span>🔳</span> Razorpay UPI QR Code
-                      </span>
-                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
-                        <span>💳</span> Credit & Debit Cards
-                      </span>
+                      {region === 'india' ? (
+                        <>
+                          <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span>📲</span> UPI Apps (GPay, PhonePe, Paytm)
+                          </span>
+                          <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span>🔳</span> Razorpay UPI QR Code
+                          </span>
+                          <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span>💳</span> Credit & Debit Cards
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span>💳</span> International Credit & Debit Cards
+                          </span>
+                          <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
+                            <span>🌐</span> Multi-Currency (USD $)
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     {/* Primary Razorpay Official Trigger Button */}
@@ -722,52 +779,9 @@ export default function ServiceBookingPage() {
                       className="w-full py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm shadow-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37] mt-2"
                     >
                       <Zap className="w-4 h-4 fill-slate-950" />
-                      <span>Pay ₹589 via Razorpay Official Gateway</span>
+                      <span>Pay {currentCalc.formattedTotal} via Razorpay Official Gateway</span>
                     </button>
                   </div>
-
-                </div>
-              ) : (
-                /* INTERNATIONAL PAYMENTS VIA RAZORPAY */
-                <div className="space-y-5 animate-fadeIn">
-                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 text-center">
-                    
-                    <div className="w-12 h-12 rounded-2xl bg-gold-gradient p-[1px] mx-auto">
-                      <div className="w-full h-full bg-[#060B18] rounded-[15px] flex items-center justify-center text-[#F3D079]">
-                        <Zap className="w-6 h-6" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <h4 className="font-cinzel text-base font-bold text-white">
-                        Razorpay International Payment Gateway
-                      </h4>
-                      <p className="text-xs text-slate-300 font-light max-w-md mx-auto">
-                        Pay $5.00 USD using International Credit Cards, Debit Cards (Visa, Mastercard, AMEX, Discover), or multi-currency cards.
-                      </p>
-                    </div>
-
-                    {/* Supported International Cards Visual Badges */}
-                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
-                        <span>💳</span> International Credit & Debit Cards
-                      </span>
-                      <span className="px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-300 font-semibold flex items-center gap-1.5">
-                        <span>🌐</span> Multi-Currency (USD $)
-                      </span>
-                    </div>
-
-                    {/* Primary Razorpay International Trigger Button */}
-                    <button
-                      type="button"
-                      onClick={handleRazorpayPayment}
-                      className="w-full py-4 rounded-xl bg-gold-gradient text-slate-950 font-bold text-sm shadow-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 border border-[#D4AF37] mt-2"
-                    >
-                      <Zap className="w-4 h-4 fill-slate-950" />
-                      <span>Pay $5.00 USD via Razorpay Gateway</span>
-                    </button>
-                  </div>
-
                 </div>
               )}
 

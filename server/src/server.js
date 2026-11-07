@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import apiRoutes from './routes/apiRoutes.js';
 import { connectDB, isMongoDBConnected } from './db/connect.js';
+import { applySecurityHeaders, sanitizeInputs } from './middleware/security.js';
+import { ensureAllFilesExist } from './db/store.js';
 
 dotenv.config();
 
@@ -15,13 +17,23 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Initialize file stores
+ensureAllFilesExist();
+
+// Apply Security HTTP Headers
+app.use(applySecurityHeaders);
+
 // Enable CORS and JSON parsing with rawBody capture for Webhook HMAC signatures
 app.use(cors());
 app.use(express.json({
+  limit: '1mb',
   verify: (req, res, buf) => {
     req.rawBody = buf;
   }
 }));
+
+// Apply input sanitization against NoSQL injection and XSS
+app.use(sanitizeInputs);
 
 // Initialize MongoDB Connection
 connectDB();

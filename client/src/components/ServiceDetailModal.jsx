@@ -1,8 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, ArrowRight, ShieldCheck, FileCheck, Phone, Tag, Sparkles } from 'lucide-react';
+import { getPublicPlanApi, getPublicGstConfigApi } from '../services/api';
 
 export default function ServiceDetailModal({ service, onClose, onOpenConsultation }) {
   if (!service) return null;
+
+  const [pricing, setPricing] = useState({
+    indiaDisplay: '₹499 + 18% GST',
+    intlDisplay: '$5 USD',
+    ctaText: 'Book Strategy Consultation'
+  });
+
+  useEffect(() => {
+    if (service?.id) {
+      Promise.all([
+        getPublicPlanApi(service.id).catch(() => null),
+        getPublicGstConfigApi().catch(() => null)
+      ]).then(([plan, gst]) => {
+        if (plan) {
+          const indiaPrice = plan.priceIndia || 499;
+          const intlPrice = plan.priceInternational || 5;
+          const rate = gst?.gstEnabled ? (gst.defaultRate ?? 18) : 0;
+          setPricing({
+            indiaDisplay: rate > 0 ? `₹${indiaPrice} + ${rate}% GST` : `₹${indiaPrice}`,
+            intlDisplay: `$${intlPrice} USD`,
+            ctaText: `Book Strategy Consultation (₹${indiaPrice} / $${intlPrice})`
+          });
+        }
+      });
+    }
+  }, [service?.id]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
@@ -23,7 +50,7 @@ export default function ServiceDetailModal({ service, onClose, onOpenConsultatio
               {service.badge}
             </span>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-              Strategy Fee: ₹499 + 18% GST (India) / $5 USD (International)
+              Strategy Fee: {pricing.indiaDisplay} (India) / {pricing.intlDisplay} (International)
             </span>
           </div>
 
@@ -108,7 +135,7 @@ export default function ServiceDetailModal({ service, onClose, onOpenConsultatio
               }}
               className="px-6 py-3.5 rounded-xl bg-gold-gradient text-slate-950 font-bold text-xs sm:text-sm shadow-lg hover:brightness-110 flex items-center gap-2 border border-[#D4AF37]"
             >
-              <span>Book Strategy Consultation (₹499 + GST / $5 USD)</span>
+              <span>{pricing.ctaText}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

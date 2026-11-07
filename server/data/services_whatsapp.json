@@ -1,0 +1,44 @@
+{
+  "international-law-business": {
+    "serviceId": "international-law-business",
+    "serviceTitle": "International Law & Global Business",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-Global-Business-Group",
+    "whatsappChannelName": "ILPU Global Business Channel"
+  },
+  "nri-property-protection": {
+    "serviceId": "nri-property-protection",
+    "serviceTitle": "NRI Property Protection & Legal Solutions",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-NRI-Property-Group",
+    "whatsappChannelName": "ILPU NRI Property Protection Group"
+  },
+  "contract-drafting": {
+    "serviceId": "contract-drafting",
+    "serviceTitle": "International Contract Drafting & Frameworks",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-Contract-Drafting-Group",
+    "whatsappChannelName": "ILPU International Contracts Group"
+  },
+  "investment-opportunities": {
+    "serviceId": "investment-opportunities",
+    "serviceTitle": "International Investment & Wealth Protection",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-Investment-Wealth-Group",
+    "whatsappChannelName": "ILPU Wealth & Investment Advisory Group"
+  },
+  "immigration-roadmap": {
+    "serviceId": "immigration-roadmap",
+    "serviceTitle": "Immigration & Emigration Roadmap Advisory",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-Immigration-Roadmap-Group",
+    "whatsappChannelName": "ILPU Global Mobility & Immigration Group"
+  },
+  "life-after-divorce": {
+    "serviceId": "life-after-divorce",
+    "serviceTitle": "Family Law & Life After Divorce Advisory",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-Family-Law-Divorce-Group",
+    "whatsappChannelName": "ILPU Family Law & Life Advisory Group"
+  },
+  "general-consultation": {
+    "serviceId": "general-consultation",
+    "serviceTitle": "1-on-1 Legal Strategy Consultation",
+    "whatsappGroupLink": "https://chat.whatsapp.com/ILPU-General-Legal-Group",
+    "whatsappChannelName": "ILPU General Legal Strategy Group"
+  }
+}

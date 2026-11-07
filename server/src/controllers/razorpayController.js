@@ -1,9 +1,15 @@
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import { saveBooking } from '../db/store.js';
+import {
+  saveBooking,
+  getPricingPlanByIdFromStore,
+  getGstConfigFromStore,
+  getServiceWhatsAppLinkFromStore
+} from '../db/store.js';
 import { sendAdminBookingNotification } from '../config/mailer.js';
 import { Booking } from '../models/Booking.js';
+import { calculatePricingBreakdown } from '../utils/pricingEngine.js';
 
 dotenv.config();
 
@@ -28,13 +34,35 @@ const getRazorpayInstance = () => {
 
 /**
  * 1. Create a Razorpay Order for Indian UPI / Card / Netbanking Checkout
+ * SECURE: Never trusts client-submitted amount. Calculates directly from DB plan & GST config.
  */
 export const createRazorpayOrder = async (req, res) => {
   try {
-    const { serviceId, serviceTitle, amount = 589, currency = 'INR', clientDetails } = req.body;
+    const { planId, serviceId, serviceTitle, region = 'india', clientDetails } = req.body;
 
-    const amountInPaise = Math.round(Number(amount) * 100);
-    const receiptId = `receipt_ilpu_${Date.now()}`;
+    // Lookup plan from DB / store
+    const targetIdentifier = planId || serviceId || 'general-consultation';
+    let plan = await getPricingPlanByIdFromStore(targetIdentifier);
+
+    if (!plan) {
+      // Fallback to general consultation plan if not found
+      plan = await getPricingPlanByIdFromStore('general-consultation');
+    }
+
+    if (!plan || plan.isActive === false) {
+      return res.status(400).json({
+        success: false,
+        error: 'The requested service plan is currently unavailable or inactive.'
+      });
+    }
+
+    const gstConfig = await getGstConfigFromStore();
+    const isIndia = region.toLowerCase() === 'india';
+    const breakdown = calculatePricingBreakdown(plan, gstConfig, isIndia ? 'india' : 'international');
+
+    const amountInPaise = breakdown.totalPaiseOrCents;
+    const currency = breakdown.currency;
+    const receiptId = `rcpt_${Date.now()}`;
     const rzp = getRazorpayInstance();
     const activeKeyId = (process.env.RAZORPAY_KEY_ID || 'rzp_test_ThLYeWwjJM4OQI').trim();
 
@@ -43,7 +71,7 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({
         success: false,
         isPlaceholderKey: true,
-        error: 'Please add your matching RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET from dashboard.razorpay.com into server/.env, or click Direct Confirmation below to complete your booking.'
+        error: 'Please add your matching RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET from dashboard.razorpay.com into server/.env, or use Direct UPI Confirmation.'
       });
     }
 
@@ -53,8 +81,16 @@ export const createRazorpayOrder = async (req, res) => {
         currency: currency,
         receipt: receiptId,
         notes: {
-          serviceId: serviceId || 'general-consultation',
-          serviceTitle: serviceTitle || 'Legal Strategy Consultation',
+          planId: plan.planId,
+          serviceId: plan.serviceId,
+          serviceTitle: serviceTitle || plan.name,
+          region: isIndia ? 'india' : 'international',
+          basePrice: String(breakdown.basePrice),
+          gstRate: String(breakdown.gstRate),
+          gstAmount: String(breakdown.gstAmount),
+          totalAmount: String(breakdown.totalAmount),
+          isInclusive: String(breakdown.isInclusive),
+          hsnSacCode: breakdown.hsnSacCode || '998211',
           clientName: clientDetails?.name || 'Client',
           clientEmail: clientDetails?.email || '',
           clientPhone: clientDetails?.phone || '',
@@ -67,13 +103,16 @@ export const createRazorpayOrder = async (req, res) => {
         orderId: razorpayOrder.id,
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
-        keyId: activeKeyId
+        keyId: activeKeyId,
+        planId: plan.planId,
+        serviceId: plan.serviceId,
+        breakdown
       });
     } catch (razorpayErr) {
       console.error('⚠️ [Razorpay API Authentication Error]:', razorpayErr.error || razorpayErr.message || razorpayErr);
       return res.status(400).json({
         success: false,
-        error: 'Razorpay Key Secret mismatch or authentication failed. Please verify your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in server/.env, or click Direct Confirmation below to confirm your booking.',
+        error: 'Razorpay Key Secret mismatch or authentication failed. Please verify your RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in server/.env, or use Direct UPI Confirmation.',
         details: razorpayErr.error?.description || razorpayErr.message
       });
     }
@@ -90,6 +129,7 @@ export const createRazorpayOrder = async (req, res) => {
 
 /**
  * 2. Verify Razorpay Payment Signature (HMAC SHA256)
+ * SECURE: Recalculates expected pricing and attaches verified snapshot to booking record.
  */
 export const verifyRazorpayPayment = async (req, res) => {
   try {
@@ -98,11 +138,10 @@ export const verifyRazorpayPayment = async (req, res) => {
       razorpay_payment_id,
       razorpay_signature,
       paymentMethod = 'UPI',
+      planId,
       serviceId,
       serviceTitle,
       region = 'india',
-      amount = 589,
-      currency = 'INR',
       clientDetails
     } = req.body;
 
@@ -157,21 +196,30 @@ export const verifyRazorpayPayment = async (req, res) => {
       });
     }
 
+    // Lookup verified plan & GST breakdown
+    const targetIdentifier = planId || serviceId || 'general-consultation';
+    let plan = await getPricingPlanByIdFromStore(targetIdentifier);
+    if (!plan) plan = await getPricingPlanByIdFromStore('general-consultation');
+
+    const gstConfig = await getGstConfigFromStore();
+    const isIndia = region.toLowerCase() === 'india';
+    const breakdown = calculatePricingBreakdown(plan, gstConfig, isIndia ? 'india' : 'international');
+
+    const effectiveServiceId = plan?.serviceId || serviceId || 'general-consultation';
+    const whatsappLink = await getServiceWhatsAppLinkFromStore(effectiveServiceId);
+
     const bookingId = `ILPU-BKG-${Date.now()}`;
     const client = clientDetails || {};
     const name = client.name || 'Client';
     const email = client.email || 'client@example.com';
     const phone = client.phone || 'N/A';
-    const country = client.country || 'India';
+    const country = client.country || (isIndia ? 'India' : 'International');
     const notes = client.notes || client.details || '';
-
-    const amountPaidStr = (currency === 'USD' || region === 'international')
-      ? `$${amount} USD`
-      : `₹499 + 18% GST (Total ₹${amount} INR)`;
 
     const fullBookingRecord = {
       id: bookingId,
       bookingId: bookingId,
+      planId: plan?.planId || '',
       paypalOrderId: razorpay_order_id,
       paypalCaptureId: razorpay_payment_id,
       paymentProvider: 'RAZORPAY',
@@ -179,13 +227,21 @@ export const verifyRazorpayPayment = async (req, res) => {
       transactionId: razorpay_payment_id,
       status: 'PAID',
       webhookVerified: true,
-      serviceId: serviceId || 'general-consultation',
-      serviceTitle: serviceTitle || '1-on-1 Legal Strategy Consultation',
-      region: region || 'india',
-      pricingTier: amountPaidStr,
-      amount: Number(amount) || (region === 'international' ? 5 : 589),
-      currency: currency || (region === 'international' ? 'USD' : 'INR'),
-      amountPaid: amountPaidStr,
+      serviceId: effectiveServiceId,
+      serviceTitle: serviceTitle || plan?.name || '1-on-1 Legal Strategy Consultation',
+      region: isIndia ? 'india' : 'international',
+      pricingTier: breakdown.displayString,
+      basePrice: breakdown.basePrice,
+      gstRate: breakdown.gstRate,
+      gstAmount: breakdown.gstAmount,
+      totalAmount: breakdown.totalAmount,
+      isInclusive: breakdown.isInclusive,
+      hsnSacCode: breakdown.hsnSacCode,
+      taxName: breakdown.taxName,
+      whatsappGroupLink: whatsappLink,
+      amount: breakdown.totalAmount,
+      currency: breakdown.currency,
+      amountPaid: breakdown.displayString,
       clientDetails: {
         name,
         email,
@@ -204,7 +260,7 @@ export const verifyRazorpayPayment = async (req, res) => {
     // 1. Save to MongoDB Atlas & persistent JSON backup
     await saveBooking(fullBookingRecord);
 
-    // 2. Automatically dispatch admin email notification in background (non-blocking for instant UI redirect)
+    // 2. Automatically dispatch admin email notification in background
     sendAdminBookingNotification(fullBookingRecord).catch(mailErr => {
       console.error('⚠️ [Background Mail Dispatch Warning]:', mailErr.message);
     });
@@ -212,7 +268,8 @@ export const verifyRazorpayPayment = async (req, res) => {
     return res.status(200).json({
       success: true,
       bookingId: bookingId,
-      booking: fullBookingRecord
+      booking: fullBookingRecord,
+      serviceWhatsAppGroupLink: whatsappLink
     });
 
   } catch (err) {
@@ -269,15 +326,18 @@ export const handleRazorpayWebhook = async (req, res) => {
         await existingBooking.save();
         console.log(`✅ [Razorpay Webhook]: Verified & Updated Booking ${existingBooking.bookingId}`);
       } else if (paymentEntity) {
-        // If booking wasn't recorded yet (e.g. webhook arrived before client redirected), create it
         const notes = paymentEntity.notes || {};
         const bookingId = `ILPU-BKG-${Date.now()}`;
         const amountVal = paymentEntity.amount ? (paymentEntity.amount / 100) : 589;
         const currencyVal = paymentEntity.currency || 'INR';
 
+        const serviceId = notes.serviceId || 'general-consultation';
+        const whatsappLink = await getServiceWhatsAppLinkFromStore(serviceId);
+
         const newBooking = {
           id: bookingId,
           bookingId: bookingId,
+          planId: notes.planId || '',
           paypalOrderId: orderId,
           paypalCaptureId: paymentId,
           paymentProvider: 'RAZORPAY',
@@ -285,13 +345,20 @@ export const handleRazorpayWebhook = async (req, res) => {
           transactionId: paymentId,
           status: 'PAID',
           webhookVerified: true,
-          serviceId: notes.serviceId || 'general-consultation',
+          serviceId: serviceId,
           serviceTitle: notes.serviceTitle || 'Legal Strategy Consultation',
           region: currencyVal === 'USD' ? 'international' : 'india',
-          pricingTier: currencyVal === 'USD' ? `$${amountVal} USD` : `₹499 + 18% GST (Total ₹${amountVal} INR)`,
+          pricingTier: `${currencyVal === 'USD' ? '$' : '₹'}${amountVal}`,
+          basePrice: Number(notes.basePrice) || amountVal,
+          gstRate: Number(notes.gstRate) || 0,
+          gstAmount: Number(notes.gstAmount) || 0,
+          totalAmount: amountVal,
+          isInclusive: notes.isInclusive === 'true',
+          hsnSacCode: notes.hsnSacCode || '998211',
+          whatsappGroupLink: whatsappLink,
           amount: amountVal,
           currency: currencyVal,
-          amountPaid: currencyVal === 'USD' ? `$${amountVal} USD` : `₹${amountVal} INR`,
+          amountPaid: `${currencyVal === 'USD' ? '$' : '₹'}${amountVal} ${currencyVal}`,
           clientDetails: {
             name: notes.clientName || paymentEntity.email || 'Client',
             email: notes.clientEmail || paymentEntity.email || '',

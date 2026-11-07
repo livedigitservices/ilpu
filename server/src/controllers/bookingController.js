@@ -1,5 +1,14 @@
-import { findBookingById, getBookings, saveBooking, removeBookingFromStore, getServiceWhatsAppLinkFromStore } from '../db/store.js';
+import {
+  findBookingById,
+  getBookings,
+  saveBooking,
+  removeBookingFromStore,
+  getServiceWhatsAppLinkFromStore,
+  getPricingPlanByIdFromStore,
+  getGstConfigFromStore
+} from '../db/store.js';
 import { sendAdminBookingNotification } from '../config/mailer.js';
+import { calculatePricingBreakdown, round2 } from '../utils/pricingEngine.js';
 
 export const getBooking = async (req, res) => {
   try {
@@ -19,7 +28,7 @@ export const getBooking = async (req, res) => {
     let serviceWhatsAppGroupLink = null;
     if (isPaid) {
       const serviceId = booking.serviceId || 'general-consultation';
-      serviceWhatsAppGroupLink = await getServiceWhatsAppLinkFromStore(serviceId);
+      serviceWhatsAppGroupLink = booking.whatsappGroupLink || await getServiceWhatsAppLinkFromStore(serviceId);
     }
 
     return res.status(200).json({
@@ -64,32 +73,53 @@ export const deleteBooking = async (req, res) => {
 
 export const createManualBooking = async (req, res) => {
   try {
-    const { serviceId, serviceTitle, region, amount, currency, clientDetails } = req.body;
+    const { planId, serviceId, serviceTitle, region = 'india', amount, currency, clientDetails } = req.body;
+
+    const targetIdentifier = planId || serviceId || 'general-consultation';
+    let plan = await getPricingPlanByIdFromStore(targetIdentifier);
+    if (!plan) plan = await getPricingPlanByIdFromStore('general-consultation');
+
+    const gstConfig = await getGstConfigFromStore();
+    const isIndia = region.toLowerCase() === 'india';
+    const breakdown = calculatePricingBreakdown(plan, gstConfig, isIndia ? 'india' : 'international');
+
+    const effectiveServiceId = plan?.serviceId || serviceId || 'general-consultation';
+    const whatsappLink = await getServiceWhatsAppLinkFromStore(effectiveServiceId);
 
     const bookingId = `ILPU-BKG-${Date.now()}`;
-    const amountPaidStr = region === 'india' ? `₹499 + 18% GST (Total ₹589 INR)` : `$5.00 USD`;
+    const finalAmount = amount !== undefined ? round2(amount) : breakdown.totalAmount;
+    const finalCurrency = currency || breakdown.currency;
 
     const fullRecord = {
       id: bookingId,
       bookingId: bookingId,
+      planId: plan?.planId || '',
       paypalOrderId: `MANUAL-${Date.now()}`,
       paypalCaptureId: `MANUAL-${Date.now()}`,
       paymentProvider: 'MANUAL_ADMIN',
       paymentMethod: 'ADMIN_DIRECT',
       transactionId: `MANUAL-${Date.now()}`,
       status: 'PAID',
-      serviceId: serviceId || 'general-consultation',
-      serviceTitle: serviceTitle || '1-on-1 Legal Strategy Consultation',
-      region: region || 'india',
-      pricingTier: amountPaidStr,
-      amount: Number(amount) || (region === 'india' ? 589 : 5),
-      currency: currency || (region === 'india' ? 'INR' : 'USD'),
-      amountPaid: amountPaidStr,
+      serviceId: effectiveServiceId,
+      serviceTitle: serviceTitle || plan?.name || '1-on-1 Legal Strategy Consultation',
+      region: isIndia ? 'india' : 'international',
+      pricingTier: breakdown.displayString,
+      basePrice: breakdown.basePrice,
+      gstRate: breakdown.gstRate,
+      gstAmount: breakdown.gstAmount,
+      totalAmount: finalAmount,
+      isInclusive: breakdown.isInclusive,
+      hsnSacCode: breakdown.hsnSacCode,
+      taxName: breakdown.taxName,
+      whatsappGroupLink: whatsappLink,
+      amount: finalAmount,
+      currency: finalCurrency,
+      amountPaid: `${finalCurrency === 'USD' ? '$' : '₹'}${finalAmount} ${finalCurrency}`,
       clientDetails: clientDetails || {},
       name: clientDetails?.name || 'Client',
       email: clientDetails?.email || '',
       phone: clientDetails?.phone || '',
-      country: clientDetails?.country || '',
+      country: clientDetails?.country || (isIndia ? 'India' : 'International'),
       details: clientDetails?.notes || '',
       createdAt: new Date().toISOString()
     };
@@ -99,9 +129,13 @@ export const createManualBooking = async (req, res) => {
       console.error('⚠️ [Background Mail Dispatch Warning]:', mailErr.message);
     });
 
-    return res.status(200).json({ success: true, bookingId, booking: fullRecord });
+    return res.status(201).json({
+      success: true,
+      bookingId: bookingId,
+      booking: fullRecord
+    });
   } catch (err) {
     console.error('[Create Manual Booking Error]:', err);
-    return res.status(500).json({ success: false, error: 'Failed to create manual booking' });
+    return res.status(500).json({ error: 'Failed to record manual booking' });
   }
 };
